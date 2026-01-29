@@ -8,7 +8,7 @@ const Dashboard = () => (
   <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
     <div className="text-center">
       <h1 className="text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">
-        Welcome to Project HQ
+        Welcome
       </h1>
       <p className="text-slate-400">You are securely logged in.</p>
     </div>

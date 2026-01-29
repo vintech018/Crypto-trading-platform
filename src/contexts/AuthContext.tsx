@@ -1,68 +1,77 @@
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../lib/api";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
-import {
-    onAuthStateChanged,
-    signInWithPopup,
-    GoogleAuthProvider,
-    type User,
-    signOut
-} from "firebase/auth";
-import { auth } from "../lib/firebase";
+export type AppUser = {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  twoFactorEnabled: boolean;
+  createdAt: string;
+};
 
-interface AuthContextType {
-    user: User | null;
-    loading: boolean;
-    signInWithGoogle: () => Promise<void>;
-    logout: () => Promise<void>;
-}
+type AuthContextType = {
+  user: AppUser | null;
+  accessToken: string | null;
+  loading: boolean;
+  setAccessToken: (token: string | null) => void;
+  refreshMe: () => Promise<void>;
+  logout: () => void;
+};
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) throw new Error("useAuth must be used within an AuthProvider");
-    return context;
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  return context;
 };
 
+const STORAGE_KEY = "accessToken";
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState(true);
+  const [accessToken, setAccessTokenState] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY));
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (!auth) {
-            setLoading(false);
-            return;
-        }
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
-            setLoading(false);
-        });
-        return () => unsubscribe();
-    }, []);
+  const setAccessToken = (token: string | null) => {
+    setAccessTokenState(token);
+    if (token) localStorage.setItem(STORAGE_KEY, token);
+    else localStorage.removeItem(STORAGE_KEY);
+  };
 
-    const signInWithGoogle = async () => {
-        if (!auth) {
-            alert("Firebase keys are missing. Please check your .env file.");
-            return;
-        }
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        try {
-            await signInWithPopup(auth, provider);
-        } catch (error) {
-            console.error("Google Sign-In Error:", error);
-            throw error;
-        }
-    };
+  const refreshMe = async () => {
+    if (!accessToken) {
+      setUser(null);
+      return;
+    }
+    const res = await apiFetch<{ user: AppUser | null }>("/auth/me", { method: "GET", token: accessToken });
+    setUser(res.user);
+  };
 
-    const logout = async () => {
-        if (!auth) return;
-        await signOut(auth);
-    };
+  useEffect(() => {
+    (async () => {
+      try {
+        await refreshMe();
+      } catch {
+        // Token invalid/expired
+        setAccessToken(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    return (
-        <AuthContext.Provider value={{ user, loading, signInWithGoogle, logout }}>
-            {children}
-        </AuthContext.Provider>
-    );
+  const logout = () => {
+    setAccessToken(null);
+    setUser(null);
+  };
+
+  const value = useMemo(
+    () => ({ user, accessToken, loading, setAccessToken, refreshMe, logout }),
+    [user, accessToken, loading]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

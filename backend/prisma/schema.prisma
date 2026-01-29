@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String?  @unique
+  phone              String?  @unique
+  passwordHash       String?
+
+  twoFactorEnabled   Boolean  @default(false)
+  /// Encrypted base32 TOTP secret (RFC 6238) used by Microsoft/Google/Authy
+  twoFactorSecretEnc String?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([email])
+  @@index([phone])
+}
+
+/// Phone OTP challenges (temporary, 5 min expiry) for FREE login without SMS provider.
+model OtpChallenge {
+  id        String   @id @default(cuid())
+  phone     String
+  otpHash   String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+}
+
+

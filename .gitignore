@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Secrets
+.env
+backend/.env
+
+# Local dev DB
+backend/prisma/*.db
