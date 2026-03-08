@@ -19,11 +19,12 @@ export function Navbar() {
     }, []);
 
     const navLinks = [
-        { name: "Features", href: "#features" },
-        { name: "AI Analysis", href: "#ai-analysis" },
-        { name: "Leaderboard", href: "#leaderboard" },
-        { name: "News", href: "#news" },
-        { name: "About", href: "#about" },
+        { name: "Features", href: "/#features" },
+        { name: "AI Analysis", href: "/#ai-analysis" },
+        { name: "Leaderboard", href: "/#leaderboard" },
+        { name: "News", href: "/#news" },
+        { name: "About", href: "/#about" },
+        { name: "Contact", href: "/contact" },
     ];
 
     return (
