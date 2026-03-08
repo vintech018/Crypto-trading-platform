@@ -43,9 +43,9 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button className="px-8 py-4 bg-white text-black font-semibold rounded-lg flex items-center justify-center gap-2 hover:bg-white/90 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.2)]">
-                        <CandlestickChart size={20} /> Open Trading Terminal
-                    </button>
+                    <Link href="/hub" className="px-8 py-4 bg-white text-black font-semibold rounded-lg flex items-center justify-center gap-2 hover:bg-white/90 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+                        <CandlestickChart size={20} /> Start Trading
+                    </Link>
                     <button className="px-8 py-4 bg-transparent border border-white/20 text-white font-semibold rounded-lg flex items-center justify-center gap-2 hover:bg-white/10 transition-colors">
                         <TrendingUp size={20} /> View AI Insights
                     </button>

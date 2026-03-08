@@ -1,0 +1,224 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sora:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --neon-green: #00e895;
+  --neon-red: #ff4d6d;
+  --neon-blue: #38bdf8;
+  --neon-gold: #f0b429;
+  --surface: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.07);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: "Inter", "Sora", sans-serif;
+  background-color: #060a12;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(0,232,149,0.10), transparent),
+    radial-gradient(ellipse 70% 60% at 90% 110%, rgba(56,189,248,0.09), transparent),
+    radial-gradient(ellipse 60% 40% at 50% 50%, rgba(167,139,250,0.04), transparent);
+  background-attachment: fixed;
+  color: #e2e8f0;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ========================
+   Scrollbar
+======================== */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ========================
+   Glassmorphism Card Base
+======================== */
+.glass-card {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 1rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.glass-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ========================
+   Price Flash
+======================== */
+.price-flash-up {
+  animation: flash-green 0.55s ease-out;
+}
+.price-flash-down {
+  animation: flash-red 0.55s ease-out;
+}
+
+@keyframes flash-green {
+  0% { background-color: rgba(0, 232, 149, 0.22); }
+  100% { background-color: transparent; }
+}
+@keyframes flash-red {
+  0% { background-color: rgba(255, 77, 109, 0.22); }
+  100% { background-color: transparent; }
+}
+
+/* ========================
+   Shimmer Skeleton
+======================== */
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.04) 75%);
+  background-size: 700px 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -700px 0; }
+  100% { background-position: 700px 0; }
+}
+
+/* ========================
+   Glow Text
+======================== */
+.glow-green {
+  color: var(--neon-green);
+  text-shadow: 0 0 12px rgba(0, 232, 149, 0.5);
+}
+.glow-red {
+  color: var(--neon-red);
+  text-shadow: 0 0 12px rgba(255, 77, 109, 0.5);
+}
+
+/* ========================
+   Status Dot
+======================== */
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.status-dot.connected {
+  background: var(--neon-green);
+  box-shadow: 0 0 6px var(--neon-green);
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+.status-dot.reconnecting {
+  background: var(--neon-gold);
+  box-shadow: 0 0 6px var(--neon-gold);
+}
+.status-dot.error {
+  background: var(--neon-red);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.8); }
+}
+
+/* ========================
+   Chart container inner glow
+======================== */
+.chart-container {
+  position: relative;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: rgba(4, 8, 18, 0.8);
+  box-shadow: inset 0 0 40px rgba(0, 232, 149, 0.03);
+}
+.chart-container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(0, 232, 149, 0.08);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ========================
+   Typing animation dots
+======================== */
+.typing-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--neon-green);
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.2; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1.15); }
+}
+
+/* ========================
+   Select styling
+======================== */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+/* ========================
+   Focus ring
+======================== */
+:focus-visible {
+  outline: 2px solid rgba(0, 232, 149, 0.5);
+  outline-offset: 2px;
+}
+
+/* ========================
+   Noise overlay (subtle)
+======================== */
+.noise::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.025;
+}
