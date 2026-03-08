@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Card Slider Animation</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #F5EDE0;
+    --dark: #111111;
+    --white: #FFFFFF;
+    --maroon: #5C1F22;
+    --accent: #8B3A3E;
+    --text-dark: #1a1a1a;
+    --text-muted: #555;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #e8dfd5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 100;
+    background: rgba(232,223,213,0.85);
+    backdrop-filter: blur(8px);
+  }
+  .nav-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--maroon);
+    letter-spacing: 0.04em;
+  }
+  .nav-right {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+  }
+  .nav-btn {
+    padding: 8px 20px;
+    border-radius: 100px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+  .nav-btn.outline {
+    background: transparent;
+    border: 1.5px solid var(--maroon);
+    color: var(--maroon);
+  }
+  .nav-btn.filled {
+    background: var(--maroon);
+    color: #fff;
+  }
+  .nav-btn:hover { opacity: 0.8; transform: translateY(-1px); }
+
+  /* HEADING */
+  .section-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--maroon);
+    margin-bottom: 10px;
+    opacity: 0;
+    animation: fadeUp 0.7s 0.2s forwards;
+  }
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    font-weight: 900;
+    color: var(--text-dark);
+    line-height: 1.1;
+    margin-bottom: 50px;
+    opacity: 0;
+    animation: fadeUp 0.7s 0.35s forwards;
+  }
+  .section-title span { color: var(--maroon); }
+
+  /* SLIDER WRAPPER */
+  .slider-container {
+    position: relative;
+    width: 100vw;
+    height: 520px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    perspective: 1200px;
+  }
+
+  /* CARDS */
+  .cards-track {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  .card {
+    position: absolute;
+    width: 420px;
+    height: 480px;
+    border-radius: 24px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.65s cubic-bezier(0.77, 0, 0.175, 1);
+    will-change: transform, left, opacity;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 36px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.18);
+  }
+
+  /* Card themes */
+  .card[data-index="0"] { background: var(--cream); color: var(--text-dark); }
+  .card[data-index="1"] { background: var(--dark); color: #fff; }
+  .card[data-index="2"] { background: var(--white); color: var(--text-dark); }
+  .card[data-index="3"] {
+    background: linear-gradient(135deg, #c9bfb8 0%, #a89f99 100%);
+    color: #fff;
+  }
+
+  /* Card states */
+  .card.state-active {
+    transform: translateX(0) scale(1) rotateY(0deg);
+    z-index: 10;
+    left: 50%;
+    margin-left: -210px;
+    opacity: 1;
+  }
+  .card.state-prev1 {
+    transform: translateX(0) scale(0.88) rotateY(8deg);
+    z-index: 7;
+    left: 50%;
+    margin-left: -560px;
+    opacity: 0.75;
+  }
+  .card.state-prev2 {
+    transform: translateX(0) scale(0.78) rotateY(12deg);
+    z-index: 5;
+    left: 50%;
+    margin-left: -780px;
+    opacity: 0.45;
+  }
+  .card.state-next1 {
+    transform: translateX(0) scale(0.88) rotateY(-8deg);
+    z-index: 7;
+    left: 50%;
+    margin-left: 140px;
+    opacity: 0.75;
+  }
+  .card.state-next2 {
+    transform: translateX(0) scale(0.78) rotateY(-12deg);
+    z-index: 5;
+    left: 50%;
+    margin-left: 360px;
+    opacity: 0.45;
+  }
+  .card.state-hidden {
+    opacity: 0;
+    z-index: 1;
+    left: 50%;
+    margin-left: 700px;
+  }
+
+  /* Card content */
+  .card-top {}
+  .card-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    margin-bottom: 18px;
+    opacity: 0.65;
+  }
+  .card-subtitle::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.7;
+  }
+  .card-description {
+    font-size: 1.05rem;
+    line-height: 1.65;
+    font-weight: 300;
+    max-width: 340px;
+  }
+  .card[data-index="1"] .card-description { color: rgba(255,255,255,0.9); }
+  .card[data-index="3"] .card-description { color: rgba(255,255,255,0.9); }
+
+  .card-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 9rem;
+    font-weight: 900;
+    line-height: 0.85;
+    position: absolute;
+    bottom: 100px;
+    right: 28px;
+    opacity: 0.18;
+    transition: opacity 0.4s;
+    letter-spacing: -0.02em;
+  }
+  .card.state-active .card-number { opacity: 1; }
+  .card[data-index="0"] .card-number { color: var(--maroon); opacity: 1; }
+  .card[data-index="1"] .card-number { color: #fff; opacity: 1; }
+  .card[data-index="2"] .card-number { color: var(--maroon); opacity: 1; }
+  .card[data-index="3"] .card-number { color: #fff; opacity: 1; }
+
+  .card-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    position: relative;
+    z-index: 2;
+  }
+  .card-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.82rem;
+    font-weight: 400;
+  }
+  .card[data-index="1"] .card-list li,
+  .card[data-index="3"] .card-list li { color: rgba(255,255,255,0.85); }
+
+  .list-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 0.68rem;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .card[data-index="0"] .list-num { border: 1.5px solid #999; color: #555; }
+  .card[data-index="1"] .list-num { border: 1.5px solid rgba(255,255,255,0.4); color: rgba(255,255,255,0.7); }
+  .card[data-index="2"] .list-num { border: 1.5px solid #ccc; color: #777; }
+  .card[data-index="3"] .list-num { border: 1.5px solid rgba(255,255,255,0.4); color: rgba(255,255,255,0.7); }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    margin-top: 44px;
+    opacity: 0;
+    animation: fadeUp 0.7s 0.6s forwards;
+  }
+  .ctrl-btn {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 2px solid var(--maroon);
+    background: transparent;
+    color: var(--maroon);
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  .ctrl-btn:hover { background: var(--maroon); color: #fff; }
+
+  .dots {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: rgba(92,31,34,0.25);
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .dot.active {
+    background: var(--maroon);
+    width: 24px;
+    border-radius: 100px;
+  }
+
+  /* Page layout */
+  .page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 80px;
+    width: 100%;
+  }
+  .header-area {
+    text-align: center;
+    padding: 40px 20px 0;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Drag hint */
+  .drag-hint {
+    font-size: 0.72rem;
+    color: var(--accent);
+    opacity: 0.6;
+    margin-top: 12px;
+    letter-spacing: 0.05em;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">MotionCraft</div>
+  <div class="nav-right">
+    <button class="nav-btn outline">Log in</button>
+    <button class="nav-btn filled">Get Started</button>
+  </div>
+</nav>
+
+<div class="page">
+  <div class="header-area">
+    <p class="section-label">Web Animation Mastery</p>
+    <h1 class="section-title">Build animations that<br><span>captivate & convert</span></h1>
+  </div>
+
+  <div class="slider-container">
+    <div class="cards-track" id="track">
+
+      <div class="card" data-index="0">
+        <div class="card-top">
+          <div class="card-subtitle">Mastering animations</div>
+          <p class="card-description">You'll start by learning the basics of web animation, including principles of motion, timeline animation, and the tools used by award-winning developers.</p>
+        </div>
+        <div class="card-number">1</div>
+        <ul class="card-list">
+          <li><span class="list-num">1</span> Advanced Timelines</li>
+          <li><span class="list-num">2</span> Smooth Transitions</li>
+          <li><span class="list-num">3</span> Parallax Animations</li>
+        </ul>
+      </div>
+
+      <div class="card" data-index="1">
+        <div class="card-top">
+          <div class="card-subtitle">Become an expert</div>
+          <p class="card-description">Whether you're a beginner or experienced developer, this course guides you through motion principles, timeline animation, and techniques used by award-winning developers.</p>
+        </div>
+        <div class="card-number">2</div>
+        <ul class="card-list">
+          <li><span class="list-num">1</span> Best Practices</li>
+          <li><span class="list-num">2</span> Refined Animations</li>
+          <li><span class="list-num">3</span> Animate with Purpose</li>
+        </ul>
+      </div>
+
+      <div class="card" data-index="2">
+        <div class="card-top">
+          <div class="card-subtitle">Calibrating easings</div>
+          <p class="card-description">They help draw attention to important elements and create a more immersive experience. Use easing in your animations to make them more engaging and visually appealing.</p>
+        </div>
+        <div class="card-number">3</div>
+        <ul class="card-list">
+          <li><span class="list-num">1</span> Ideal Easings</li>
+          <li><span class="list-num">2</span> How to Use Eases</li>
+          <li><span class="list-num">3</span> When to Use Eases</li>
+        </ul>
+      </div>
+
+      <div class="card" data-index="3">
+        <div class="card-top">
+          <div class="card-subtitle">Award-winning results</div>
+          <p class="card-description">Apply every technique you've learned to craft interactions that are memorable, fluid, and truly award-worthy — setting your work apart from the rest.</p>
+        </div>
+        <div class="card-number">4</div>
+        <ul class="card-list">
+          <li><span class="list-num">1</span> Award-winning Animations</li>
+          <li><span class="list-num">2</span> Outstanding Interactions</li>
+          <li><span class="list-num">3</span> Immersive Experiences</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn" id="prevBtn">&#8592;</button>
+    <div class="dots" id="dots">
+      <div class="dot active" data-i="0"></div>
+      <div class="dot" data-i="1"></div>
+      <div class="dot" data-i="2"></div>
+      <div class="dot" data-i="3"></div>
+    </div>
+    <button class="ctrl-btn" id="nextBtn">&#8594;</button>
+  </div>
+  <p class="drag-hint">← drag or click cards to navigate →</p>
+</div>
+
+<script>
+const cards = Array.from(document.querySelectorAll('.card'));
+const dots  = Array.from(document.querySelectorAll('.dot'));
+const total = cards.length;
+let active  = 0;
+
+const states = ['state-prev2','state-prev1','state-active','state-next1','state-next2','state-hidden'];
+
+function getState(cardIdx, activeIdx) {
+  const diff = (cardIdx - activeIdx + total) % total;
+  if (diff === 0) return 'state-active';
+  if (diff === 1) return 'state-next1';
+  if (diff === 2) return 'state-next2';
+  if (diff === total - 1) return 'state-prev1';
+  if (diff === total - 2) return 'state-prev2';
+  return 'state-hidden';
+}
+
+function render() {
+  cards.forEach((card, i) => {
+    card.className = 'card';
+    card.classList.add(getState(i, active));
+  });
+  dots.forEach((dot, i) => {
+    dot.classList.toggle('active', i === active);
+  });
+}
+
+function go(dir) {
+  active = (active + dir + total) % total;
+  render();
+}
+
+document.getElementById('nextBtn').addEventListener('click', () => go(1));
+document.getElementById('prevBtn').addEventListener('click', () => go(-1));
+dots.forEach(dot => dot.addEventListener('click', () => {
+  active = +dot.dataset.i;
+  render();
+}));
+
+// Click on side cards to navigate
+cards.forEach((card, i) => {
+  card.addEventListener('click', () => {
+    if (i !== active) {
+      active = i;
+      render();
+    }
+  });
+});
+
+// Drag / swipe
+let startX = 0;
+document.querySelector('.slider-container').addEventListener('pointerdown', e => { startX = e.clientX; });
+document.querySelector('.slider-container').addEventListener('pointerup', e => {
+  const dx = e.clientX - startX;
+  if (Math.abs(dx) > 40) go(dx < 0 ? 1 : -1);
+});
+
+// Auto-play
+let timer = setInterval(() => go(1), 4500);
+document.querySelector('.slider-container').addEventListener('pointerdown', () => clearInterval(timer));
+
+render();
+</script>
+</body>
+</html>
