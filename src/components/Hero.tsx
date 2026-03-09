@@ -90,14 +90,7 @@ export function Hero() {
             {/* Content */}
             <div className="container relative z-10 mx-auto px-6 text-center max-w-5xl">
                 <div className="flex flex-col items-center">
-                    <motion.div
-                        initial={{ opacity: 0, y: -20, scale: 0.9 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ duration: 0.8, type: "spring", bounce: 0.5 }}
-                        className="inline-block mb-6 px-4 py-1.5 rounded-full border border-white/20 bg-white/5 backdrop-blur-sm"
-                    >
-                        <span className="text-sm font-medium text-white/80">SOLIDUS AI TRADING ENGINE 2.0</span>
-                    </motion.div>
+
 
                     <h1 className="text-5xl md:text-7xl lg:text-8xl font-display font-bold tracking-tight text-white mb-6">
                         {["Trade", "Crypto"].map((word, i) => (

@@ -38,7 +38,8 @@ export function Navbar() {
             <div className="container mx-auto px-6 max-w-7xl">
                 <div className="flex items-center justify-between h-20">
                     {/* Logo */}
-                    <Link href="/" className="flex items-center gap-2">
+                    <Link href="/" className="flex items-center gap-3">
+                        <img src="/logo.svg" alt="Solidus Logo" width={32} height={32} />
                         <span className="font-display font-bold text-2xl tracking-tighter text-white">
                             SOLIDUS<span className="text-white/50">.</span>
                         </span>
