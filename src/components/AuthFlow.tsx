@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation'
 const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com'
 const APPLE_SERVICE_ID = 'com.yourapp.service'
 const APPLE_REDIRECT_URI = 'https://yourapp.com/auth/apple/callback'
+// Backend API URL
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5050'
 // ============================================================
 
 /* ── Scoped styles ── */
@@ -619,10 +621,33 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
         if (!lPass) e.pass = 'Password is required'
         if (Object.keys(e).length) { setLErr(e); return }
         setLErr({}); setLLoading(true)
-        await delay(1200)
+        try {
+            const res = await fetch(`${BACKEND_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: lEmail, password: lPass }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                setLErr({ pass: data.message || 'Invalid email or password' })
+                setLLoading(false)
+                return
+            }
+            if (data.accessToken) {
+                localStorage.setItem('accessToken', data.accessToken)
+                fire('Welcome back to Solidus! 🎉')
+                setTimeout(() => router.push('/dashboard'), 1500)
+            } else if (data.requires2fa || data.requires2faSetup) {
+                localStorage.setItem('twoFaToken', data.twoFaToken)
+                fire('2FA required — please verify via authenticator app', 'error')
+            } else {
+                fire('Welcome back to Solidus! 🎉')
+                setTimeout(() => router.push('/dashboard'), 1500)
+            }
+        } catch {
+            fire('Cannot connect to server. Is the backend running?', 'error')
+        }
         setLLoading(false)
-        fire('Welcome back to Solidus! 🎉')
-        setTimeout(() => router.push('/dashboard'), 1500)
     }
 
     const doSignup = async () => {
@@ -636,10 +661,29 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
         if (!agreed) e.agree = 'You must agree to the Privacy Notice'
         if (Object.keys(e).length) { setSErr(e); return }
         setSErr({}); setSLoading(true)
-        await delay(1400)
+        try {
+            const res = await fetch(`${BACKEND_URL}/auth/signup`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: sEmail, password: sPass }),
+            })
+            const data = await res.json()
+            if (!res.ok) {
+                if (res.status === 409) setSErr({ email: 'This email is already registered' })
+                else setSErr({ email: data.message || 'Signup failed. Please try again.' })
+                setSLoading(false)
+                return
+            }
+            // After signup, backend requires 2FA setup
+            if (data.twoFaToken) {
+                localStorage.setItem('twoFaToken', data.twoFaToken)
+            }
+            fire('Account created! Welcome to Solidus 🚀')
+            setTimeout(() => router.push('/dashboard'), 1500)
+        } catch {
+            fire('Cannot connect to server. Is the backend running?', 'error')
+        }
         setSLoading(false)
-        fire('Account created! Welcome to Solidus 🚀')
-        setTimeout(() => router.push('/dashboard'), 1500)
     }
 
     const str = pwStrength(sPass)
