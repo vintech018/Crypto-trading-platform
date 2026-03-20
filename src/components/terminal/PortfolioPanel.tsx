@@ -2,6 +2,7 @@
 
 import { useMarketStore } from '@/state/marketStore'
 import { X } from 'lucide-react'
+import { closePositionLines } from './PositionLines'
 
 export function PortfolioPanel() {
     const equity = useMarketStore(s => s.equity)
@@ -77,7 +78,7 @@ export function PortfolioPanel() {
                                         </span>
                                         <span className="text-[8px] text-yellow-400 bg-yellow-400/10 px-1 rounded">{pos.leverage}×</span>
                                     </div>
-                                    <button onClick={() => closePosition(pos.id)} className="text-white/20 hover:text-white/60 transition-colors">
+                                    <button onClick={() => { const exitPx = prices[pos.symbol]?.price ?? pos.entryPrice; closePosition(pos.id); closePositionLines(exitPx) }} className="text-white/20 hover:text-white/60 transition-colors">
                                         <X size={11} />
                                     </button>
                                 </div>

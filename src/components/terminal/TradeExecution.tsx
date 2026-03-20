@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useMarketStore } from '@/state/marketStore'
 import { TrendingUp, TrendingDown } from 'lucide-react'
+import { setPositionLines } from './PositionLines'
 
 type OrderType = 'market' | 'limit'
 type Side = 'long' | 'short'
@@ -43,11 +44,13 @@ export function TradeExecution() {
             timestamp: Date.now(),
         }
         addPosition(pos)
+        // Draw open/close lines on the chart canvas
+        setPositionLines({ open: execPrice, close: execPrice, side })
         setLastAction(`${side === 'long' ? 'Bought' : 'Sold'} ${qty} ${shortSym} @ $${execPrice.toFixed(2)} ×${leverage}`)
         setTimeout(() => setLastAction(null), 4000)
     }
 
-    const LEVERAGE_PRESETS = [1, 2, 5, 10, 20, 50]
+    const LEVERAGE_PRESETS = [1, 2, 5, 10]
 
     return (
         <div className="h-full flex flex-col">
@@ -98,7 +101,7 @@ export function TradeExecution() {
                     <input
                         type="range"
                         min={1}
-                        max={100}
+                        max={10}
                         value={leverage}
                         onChange={e => setLeverage(Number(e.target.value))}
                         className="w-full accent-white h-1 rounded"

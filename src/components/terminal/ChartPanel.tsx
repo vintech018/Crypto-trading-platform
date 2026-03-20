@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, memo } from 'react'
 import { useMarketStore } from '@/state/marketStore'
 import { LayoutGrid, Square } from 'lucide-react'
+import { PositionLines } from './PositionLines'
 
 const TIMEFRAMES = [
     { value: '1', label: '1m' },
@@ -159,7 +160,10 @@ export function ChartPanel() {
             {/* Chart area */}
             <div className="flex-1 overflow-hidden">
                 {chartMode === 'single' ? (
-                    <TVChart symbol={activeSymbol} interval={tvInterval} />
+                    <div className="relative w-full h-full">
+                        <TVChart symbol={activeSymbol} interval={tvInterval} />
+                        <PositionLines />
+                    </div>
                 ) : (
                     <div className="grid grid-cols-2 grid-rows-2 h-full gap-px bg-white/[0.04]">
                         {QUAD_SYMBOLS.map(sym => (
