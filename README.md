@@ -1,40 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/create-next-app).
+# Solidus AI
 
-## Getting Started
+A professional cryptocurrency trade analysis assistant integrated into the Solidus crypto learning platform.
 
-First, run the development server:
+## Setup
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Set up PostgreSQL database:
+   - Create a database named `solidus_ai`
+   - Run the SQL script in `init-db.sql` to create tables
 
-You can start editing the page by modifying `app/route.ts`. The page auto-updates as you edit the file.
+3. Configure environment variables:
+   - Copy `.env.local` and fill in your values:
+     - `DATABASE_URL`: PostgreSQL connection string
+     - `OPENAI_API_KEY`: Your OpenAI API key
+     - `JWT_SECRET`: A secret key for JWT tokens
 
-## Learn More
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+Open [http://localhost:3000](http://localhost:3000) to access the application.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- User authentication with JWT
+- Upload trade screenshots for AI analysis
+- Structured trade feedback based on technical analysis
+- Trade history and analysis storage
+- Modern dark UI with crypto theme
 
-## Deploy on Vercel
+## API
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-
-## API Routes
-
-This directory contains example API routes for the headless API app.
-
-For more details, see [route.js file convention](https://nextjs.org/docs/app/api-reference/file-conventions/route).
+- `POST /api/auth/register` - Register a new user
+- `POST /api/auth/login` - Login user
+- `POST /api/trades` - Upload and analyze a trade
+- `GET /api/trades` - Get user's trade history
