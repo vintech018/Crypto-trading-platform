@@ -1,0 +1,42 @@
+{
+  "max_open_trades": 3,
+  "stake_currency": "USDT",
+  "stake_amount": 10000,
+  "tradable_balance_ratio": 0.99,
+  "fiat_display_currency": "USD",
+  "dry_run": true,
+  "cancel_open_orders_on_exit": false,
+  "exchange": {
+    "name": "binance",
+    "key": "your_exchange_key",
+    "secret": "your_exchange_secret",
+    "ccxt_config": {
+      "enableRateLimit": true
+    },
+    "ccxt_async_config": {
+      "enableRateLimit": true,
+      "rateLimit": 200
+    },
+    "pair_whitelist": [
+      "BTC/USDT"
+    ],
+    "pair_blacklist": [
+      "BNB/BTC",
+      "USDC/USDT"
+    ]
+  },
+  "webhook": {
+    "enabled": true,
+    "url": "http://host.docker.internal:4002/api/webhook",
+    "webhookbuy": {
+      "type": "open",
+      "botName": "Freqtrade NFI Cloud Engine",
+      "botId": "66f92fd1-d827-4caf-b16a-270131d22229"
+    },
+    "webhooksell": {
+      "type": "close",
+      "botName": "Freqtrade NFI Cloud Engine",
+      "botId": "66f92fd1-d827-4caf-b16a-270131d22229"
+    }
+  }
+}
