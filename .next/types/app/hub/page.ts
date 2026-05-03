@@ -1,4 +1,4 @@
-// File: /Users/vaibhav/Desktop/solidus/Crypto-trading-platform/src/app/hub/page.tsx
+// File: /Users/jaspreetsingh/Documents/solidustradingai/src/app/hub/page.tsx
 import * as entry from '../../../../src/app/hub/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

@@ -2,10 +2,10 @@
  * botEngine.js — Core trading bot engine using technical indicators.
  *
  * Receives price ticks from Binance stream, calculates live technicals,
- * and evaluates each active bot against its multi-condition logic.
+ * and evaluates each active bot against its multi-condition logic asynchronously.
  */
 
-const { getAllBots, updateBot } = require('./botStore');
+const { getAllBots, updateBot, addTradeToBot } = require('./botStore');
 const { getMarketIndicators } = require('./indicatorService');
 const { evaluateConditions } = require('./conditionEngine');
 const { getCandles } = require('./candleService');
@@ -23,8 +23,9 @@ function setEmitters({ onUpdate, onTrade }) {
 /**
  * Called on every price tick from the Binance stream.
  */
-function onPriceTick(symbol, price) {
-  const bots = getAllBots().filter(
+async function onPriceTick(symbol, price) {
+  const allBots = await getAllBots();
+  const bots = allBots.filter(
     (b) => b.status === BOT_STATUS.ACTIVE && b.pair === symbol
   );
 
@@ -35,25 +36,25 @@ function onPriceTick(symbol, price) {
 
   for (const bot of bots) {
     try {
-      processBotTick(bot, data);
+      await processBotTick(bot, data);
     } catch (err) {
       console.error(`[BotEngine] Error processing bot ${bot.id}:`, err.message);
     }
   }
 }
 
-function processBotTick(bot, data) {
+async function processBotTick(bot, data) {
   const price = data.price;
   const now = new Date();
   
   // --- Reset daily trade count ---
   const lastReset = new Date(bot.lastDailyReset);
   if (now.toDateString() !== lastReset.toDateString()) {
-    bot = updateBot(bot.id, { dailyTradeCount: 0, lastDailyReset: now.toISOString() });
+    bot = await updateBot(bot.id, { dailyTradeCount: 0, lastDailyReset: now.toISOString() });
   }
 
   // --- Max trades per day check ---
-  if (bot.exit.maxTradesPerDay > 0 && bot.dailyTradeCount >= bot.exit.maxTradesPerDay) {
+  if (bot.exit && bot.exit.maxTradesPerDay > 0 && bot.dailyTradeCount >= bot.exit.maxTradesPerDay) {
     return;
   }
 
@@ -63,7 +64,7 @@ function processBotTick(bot, data) {
   if (!bot.position) {
     // We maintain a reference price inside the bot payload for % drop checks
     if (bot.referencePrice === null) {
-      updateBot(bot.id, { referencePrice: price });
+      await updateBot(bot.id, { referencePrice: price });
       return;
     }
     
@@ -77,7 +78,17 @@ function processBotTick(bot, data) {
     }
 
     // Evaluate Engine Rules
-    const shouldEnter = evaluateConditions(bot.entryConditions, bot.logic, data);
+    let shouldEnter = false;
+
+    if (bot.botClass === 'algo') {
+      if (data.rsi !== null && data.macd !== null) {
+        shouldEnter = data.rsi < 65 && data.macd > data.signal;
+      } else {
+        shouldEnter = Math.random() > 0.95;
+      }
+    } else {
+      shouldEnter = evaluateConditions(bot.entryConditions || [], bot.logic, data);
+    }
 
     if (shouldEnter) {
       const notional = bot.amount * (bot.leverage || 1);
@@ -87,7 +98,7 @@ function processBotTick(bot, data) {
         openedAt: now.toISOString(),
         qty,
       };
-      const updated = updateBot(bot.id, {
+      const updated = await updateBot(bot.id, {
         position,
         dailyTradeCount: bot.dailyTradeCount + 1,
         tradeCount: bot.tradeCount + 1,
@@ -116,8 +127,12 @@ function processBotTick(bot, data) {
   // PATH B — Position open → check exit
   // =====================
   const { entryPrice, openedAt, qty } = bot.position;
+  
   if (!bot.position.maxPriceSeen || price > bot.position.maxPriceSeen) {
     bot.position.maxPriceSeen = price;
+    // We won't await this save immediately to save DB calls, we just keep it in memory 
+    // and let the next cycle or close save it if needed, OR we can just save it.
+    await updateBot(bot.id, { position: bot.position });
   }
 
   const unrealizedPnl = (price - entryPrice) * qty;
@@ -126,25 +141,30 @@ function processBotTick(bot, data) {
   
   let closeReason = null;
 
-  if (bot.exit.trailingEnabled) {
-    // Check if peak price hit the trailing activation barrier
+  if (bot.exit && bot.exit.trailingEnabled) {
     if (maxChangePct >= bot.exit.tp) {
-      // If it drops from the peak by the deviation threshold, we lock in the profit
       if (maxChangePct - changePct >= bot.exit.trailingDeviation) {
         closeReason = 'trailing_take_profit';
       }
     }
-    // Standard stop loss still applies
     if (!closeReason && changePct <= -bot.exit.sl) {
       closeReason = 'stop_loss';
     }
-  } else {
-    // Standard static logic
+  } else if (bot.exit) {
     if (changePct >= bot.exit.tp) {
       closeReason = 'take_profit';
     } else if (changePct <= -bot.exit.sl) {
       closeReason = 'stop_loss';
     }
+  }
+
+  // 🚀 Simulated ML Engine Exit (Paper Trading Fallback)
+  if (!closeReason && bot.botClass === 'algo' && data.rsi !== null) {
+      if (changePct > 0.05 && data.rsi > 70) {
+          closeReason = 'ml_dynamic_take_profit';
+      } else if (changePct < -0.1 && data.rsi < 30) {
+          closeReason = 'ml_dynamic_stop_loss';
+      }
   }
 
   if (closeReason) {
@@ -157,21 +177,20 @@ function processBotTick(bot, data) {
       pnl: realizedPnl,
       pnlPct: changePct,
       qty,
-      openedAt,
+      openedAt: new Date(openedAt).toISOString(),
       closedAt: now.toISOString(),
       closeReason,
     };
 
-    const updatedTrades = [trade, ...bot.trades].slice(0, 100);
+    await addTradeToBot(bot.id, trade);
 
-    const updated = updateBot(bot.id, {
+    const updated = await updateBot(bot.id, {
       position: null,
       unrealizedPnl: 0,
       pnl: bot.pnl + realizedPnl,
       virtualBalance: bot.virtualBalance + realizedPnl,
       winCount: isWin ? bot.winCount + 1 : bot.winCount,
-      trades: updatedTrades,
-      referencePrice: price, // reset reference after closing
+      referencePrice: price,
       lastTradeAt: now.toISOString(),
     });
 
@@ -188,12 +207,13 @@ function processBotTick(bot, data) {
       at: trade.closedAt,
     });
   } else {
-    // Constantly emit soft updates for Dashboard Syncing
-    emitBotUpdate(updateBot(bot.id, { unrealizedPnl }));
+    // Soft update
+    const updated = await updateBot(bot.id, { unrealizedPnl });
+    emitBotUpdate(updated);
   }
 }
 
-function forceClosePosition(bot, currentPrice) {
+async function forceClosePosition(bot, currentPrice) {
   if (!bot || !bot.position) return bot;
   
   const { entryPrice, openedAt, qty } = bot.position;
@@ -207,20 +227,19 @@ function forceClosePosition(bot, currentPrice) {
     pnl: realizedPnl,
     pnlPct: changePct,
     qty,
-    openedAt,
+    openedAt: new Date(openedAt).toISOString(),
     closedAt: now.toISOString(),
     closeReason: 'manual_stop',
   };
 
-  const updatedTrades = [trade, ...bot.trades].slice(0, 100);
+  await addTradeToBot(bot.id, trade);
 
-  const updated = updateBot(bot.id, {
+  const updated = await updateBot(bot.id, {
     position: null,
     unrealizedPnl: 0,
     pnl: bot.pnl + realizedPnl,
     virtualBalance: bot.virtualBalance + realizedPnl,
     winCount: realizedPnl > 0 ? bot.winCount + 1 : bot.winCount,
-    trades: updatedTrades,
     referencePrice: currentPrice,
     lastTradeAt: now.toISOString(),
   });

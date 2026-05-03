@@ -1,0 +1,5 @@
+<svg width="400" height="400" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="400" fill="#000000"/>
+  <!-- The Absolute Monolith - Sharp negative space cut through a pristine block -->
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M 100 100 H 220 V 160 H 160 V 220 L 280 100 H 300 V 300 H 180 V 240 H 240 V 180 L 120 300 H 100 V 100 Z" fill="#FFFFFF"/>
+</svg>

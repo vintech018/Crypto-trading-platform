@@ -97,3 +97,15 @@ html {
     text-wrap: balance;
   }
 }
+
+.lab-bg::before {
+  overflow: hidden;
+  max-width: 100vw;
+  max-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* Forcefully hide Next.js dev tools overlay that shows up in the corner */
+nextjs-portal, #__next-build-watcher {
+  display: none !important;
+}

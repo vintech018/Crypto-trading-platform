@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Wallet {
+  id      Int   @id @default(1)
+  balance Float @default(50000)
+}
+
+model Bot {
+  id               String   @id @default(uuid())
+  userId           String   @default("anonymous")
+  botClass         String   @default("advanced")
+  name             String
+  pair             String
+  amount           Float
+  leverage         Float    @default(1)
+  logic            String   @default("AND")
+  status           String   @default("INACTIVE")
+  pnl              Float    @default(0)
+  unrealizedPnl    Float    @default(0)
+  tradeCount       Int      @default(0)
+  winCount         Int      @default(0)
+  virtualBalance   Float
+  lastTradeAt      DateTime?
+  dailyTradeCount  Int      @default(0)
+  lastDailyReset   DateTime @default(now())
+  referencePrice   Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  entryConditions  EntryCondition[]
+  exit             ExitRule?
+  position         Position?
+  trades           Trade[]
+}
+
+model EntryCondition {
+  id       String  @id @default(uuid())
+  botId    String
+  type     String
+  operator String?
+  value    Float?
+  bot      Bot     @relation(fields: [botId], references: [id], onDelete: Cascade)
+}
+
+model ExitRule {
+  id                String  @id @default(uuid())
+  botId             String  @unique
+  tp                Float
+  sl                Float
+  trailingEnabled   Boolean @default(false)
+  trailingDeviation Float   @default(0.5)
+  maxTradesPerDay   Int     @default(0)
+  bot               Bot     @relation(fields: [botId], references: [id], onDelete: Cascade)
+}
+
+model Position {
+  id           String   @id @default(uuid())
+  botId        String   @unique
+  entryPrice   Float
+  openedAt     DateTime @default(now())
+  qty          Float
+  maxPriceSeen Float?
+  bot          Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+}
+
+model Trade {
+  id          String   @id @default(uuid())
+  botId       String
+  entryPrice  Float
+  exitPrice   Float
+  pnl         Float
+  pnlPct      Float?
+  qty         Float
+  openedAt    DateTime
+  closedAt    DateTime @default(now())
+  closeReason String?
+  bot         Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+}

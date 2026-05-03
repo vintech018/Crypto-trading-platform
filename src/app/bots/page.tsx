@@ -8,6 +8,14 @@ import { api, type Bot as BotModel } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
 import { BotCard } from '@/components/bot/BotCard';
 import { CreateBotModal } from '@/components/bot/CreateBotModal';
+import { AnimatedNavFramer, NavTab } from '@/components/ui/animated-nav-framer';
+
+const NAV_TABS: NavTab[] = [
+  { id: 'beginner', name: 'Beginner' },
+  { id: 'advanced', name: 'Advanced' },
+  { id: 'algo', name: 'Algorithmic', locked: true },
+  { id: 'running', name: 'Running' },
+];
 
 export default function BotsPage() {
   const [bots, setBots] = useState<BotModel[]>([]);
@@ -16,6 +24,28 @@ export default function BotsPage() {
   const [connected, setConnected]   = useState(false);
   const [wallet, setWallet]         = useState<{ balance: number } | null>(null);
   const [recentTrade, setRecentTrade] = useState<{ botName: string; type: string; pnl?: number; price: number } | null>(null);
+  const [activeTab, setActiveTab]   = useState<string>('beginner');
+
+  // ── Page Loader ────────────────────────────────────────────────────────
+  const LOAD_MESSAGES = [
+    'Initializing bot engine…',
+    'Fetching deployed strategies…',
+    'Syncing with execution server…',
+    'Loading trading environment…',
+  ];
+  const [loadingDone, setLoadingDone] = useState(false);
+  const [loadMsg, setLoadMsg] = useState(0);
+
+  useEffect(() => {
+    let msgIdx = 0;
+    const msgTimer = setInterval(() => {
+      msgIdx++;
+      if (msgIdx < LOAD_MESSAGES.length) setLoadMsg(msgIdx);
+      else clearInterval(msgTimer);
+    }, 350);
+    const doneTimer = setTimeout(() => setLoadingDone(true), 1600);
+    return () => { clearInterval(msgTimer); clearTimeout(doneTimer); };
+  }, []);
 
   // ── REST initial load ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -32,8 +62,17 @@ export default function BotsPage() {
   useEffect(() => {
     const socket = getSocket();
 
-    socket.on('connect',    () => setConnected(true));
-    socket.on('disconnect', () => setConnected(false));
+    if (socket.connected) {
+      setConnected(true);
+    } else {
+      socket.connect();
+    }
+
+    const onConnect = () => setConnected(true);
+    const onDisconnect = () => setConnected(false);
+
+    socket.on('connect', onConnect);
+    socket.on('disconnect', onDisconnect);
 
     // Full list (on connect or after create/start/stop/delete)
     socket.on('bot:list', (list: BotModel[]) => {
@@ -109,6 +148,46 @@ export default function BotsPage() {
   }
 
   return (
+    <>
+      <style>{`
+        /* Loading overlay fade */
+        .bots-loading {
+          transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        .bots-loading.done {
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+        }
+      `}</style>
+
+      {/* Loading overlay */}
+      <div className={`bots-loading fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center gap-6 ${loadingDone ? 'done' : ''}`}>
+        {/* Logo */}
+        <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center mb-2 shadow-[0_0_40px_rgba(255,255,255,0.2)]">
+          <span className="text-black text-2xl font-black">S</span>
+        </div>
+        <div className="text-white text-lg font-bold tracking-wider">SOLIDUS</div>
+        {/* Spinner */}
+        <div className="relative w-8 h-8">
+          <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+          <div className="absolute inset-0 rounded-full border-2 border-t-white border-r-transparent border-b-transparent border-l-transparent animate-spin" />
+        </div>
+        {/* Message */}
+        <div className="h-5 flex items-center">
+          <span className="text-[11px] font-mono text-white/40 tracking-widest transition-all duration-300">
+            {LOAD_MESSAGES[loadMsg]}
+          </span>
+        </div>
+        {/* Progress bar */}
+        <div className="w-48 h-px bg-white/10 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-white/60 rounded-full transition-all duration-300 ease-out"
+            style={{ width: `${((loadMsg + 1) / LOAD_MESSAGES.length) * 100}%` }}
+          />
+        </div>
+      </div>
+
     <div className="min-h-screen bg-black bg-grid-white relative">
       {/* backdrop */}
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(34,197,94,0.05),transparent)] pointer-events-none" />
@@ -117,37 +196,27 @@ export default function BotsPage() {
       <nav className="sticky top-0 z-40 border-b border-white/[0.05] bg-black/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="http://localhost:3000/hub" className="flex items-center gap-1.5 text-white/30 hover:text-white transition-colors text-sm">
-              <ArrowLeft size={14} /> Back
+            <Link href="/hub" className="flex items-center gap-2 text-white/40 hover:text-white transition-colors text-base font-medium">
+              <ArrowLeft size={16} /> Back
             </Link>
-            <div className="w-px h-4 bg-white/10" />
+            <div className="w-px h-5 bg-white/10" />
             <div className="flex items-center gap-2">
-              <Zap size={15} className="text-emerald-400" />
-              <span className="font-display font-bold text-white text-sm">SOLIDUS</span>
-              <span className="text-white/20 text-sm">/ Trading Bots</span>
+              <Zap size={18} className="text-emerald-400" />
+              <span className="font-display font-bold text-white text-base tracking-wide">SOLIDUS</span>
+              <span className="text-white/30 text-base">/ Trading Bots</span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             {/* Connection status */}
-            <div className={`flex items-center gap-1.5 text-[10px] font-medium ${connected ? 'text-emerald-400' : 'text-red-400'}`}>
-              {connected ? <Wifi size={12} /> : <WifiOff size={12} />}
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-xl border backdrop-blur-md text-sm font-bold transition-all ${
+              connected 
+                ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]' 
+                : 'bg-red-500/10 border-red-500/20 text-red-400'
+            }`}>
+              {connected ? <Wifi size={16} className="animate-pulse" /> : <WifiOff size={16} />}
               {connected ? 'Live' : 'Connecting…'}
             </div>
-
-            <button
-              id="create-bot-btn"
-              onClick={() => {
-                if (wallet && wallet.balance <= 0) {
-                  alert("⚠️ Your entire $50,000 capital is deployed.\n\nYou must DELETE a running bot to free up capital before making a new one.");
-                  return;
-                }
-                setShowModal(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-white text-black rounded-xl hover:bg-white/90 transition-all"
-            >
-              <Plus size={15} /> Create Bot
-            </button>
           </div>
         </div>
       </nav>
@@ -212,101 +281,141 @@ export default function BotsPage() {
           )}
         </div>
 
+        {/* Dynamic Section Rendering based on activeTab */}
+        
         {/* Tier 1: Beginner */}
-        <section className="mb-14">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex flex-col">
-               <h2 className="text-lg font-bold text-white flex items-center gap-2">Beginner Trading <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/60">Tier 1</span></h2>
-               <p className="text-xs text-white/40 mt-1">Simple conditional strategies evaluating raw price drops and pumps.</p>
+        {activeTab === 'beginner' && (
+          <motion.section 
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="mb-14"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex flex-col">
+                 <h2 className="text-lg font-bold text-white flex items-center gap-2">Beginner Trading <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/60">Tier 1</span></h2>
+                 <p className="text-xs text-white/40 mt-1">Simple conditional strategies evaluating raw price drops and pumps.</p>
+              </div>
+              <button onClick={() => attemptCreate('beginner')} className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-white/10 border border-white/20 text-white rounded-xl hover:bg-white/20 transition-all">
+                <Plus size={13} /> Create Beginner
+              </button>
             </div>
-            <button onClick={() => attemptCreate('beginner')} className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-white/10 border border-white/20 text-white rounded-xl hover:bg-white/20 transition-all">
-              <Plus size={13} /> Create Beginner
-            </button>
-          </div>
-          {renderBotGrid(beginnerBots)}
-        </section>
+            {renderBotGrid(beginnerBots)}
+          </motion.section>
+        )}
 
         {/* Tier 2: Advanced */}
-        <section className="mb-14">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex flex-col">
-               <h2 className="text-lg font-bold text-white flex items-center gap-2">Advanced Technicals <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">Tier 2</span></h2>
-               <p className="text-xs text-white/40 mt-1">Multi-indicator condition engine utilizing RSI, MACD, and MA Crosses.</p>
+        {activeTab === 'advanced' && (
+          <motion.section 
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="mb-14"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex flex-col">
+                 <h2 className="text-lg font-bold text-white flex items-center gap-2">Advanced Technicals <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded">Tier 2</span></h2>
+                 <p className="text-xs text-white/40 mt-1">Multi-indicator condition engine utilizing RSI, MACD, and MA Crosses.</p>
+              </div>
+              <button onClick={() => attemptCreate('advanced')} className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all">
+                <Plus size={13} /> Create Advanced
+              </button>
             </div>
-            <button onClick={() => attemptCreate('advanced')} className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl hover:bg-emerald-500/20 transition-all">
-              <Plus size={13} /> Create Advanced
-            </button>
-          </div>
-          {renderBotGrid(advancedBots)}
-        </section>
+            {renderBotGrid(advancedBots)}
+          </motion.section>
+        )}
 
         {/* Tier 3: Algo Marketplace */}
-        <section className="mb-14">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex flex-col">
-               <h2 className="text-lg font-bold text-white flex items-center gap-2">Algorithmic App Store <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(168,85,247,0.3)]">Tier 3</span></h2>
-               <p className="text-xs text-white/40 mt-1">Deploy pre-configured Open Source microservices instantly.</p>
+        {activeTab === 'algo' && (
+          <motion.section 
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="mb-14"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex flex-col">
+                 <h2 className="text-lg font-bold text-white flex items-center gap-2">Algorithmic App Store <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(168,85,247,0.3)]">Tier 3</span></h2>
+                 <p className="text-xs text-white/40 mt-1">Deploy pre-configured Open Source microservices instantly.</p>
+              </div>
             </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {algoBots.length > 0 ? (
-              <AnimatePresence>
-                {algoBots.map((bot) => (
-                  <BotCard key={bot.id} bot={bot} onStart={handleStart} onStop={handleStop} onDelete={handleDelete} loading={loading === bot.id} />
-                ))}
-              </AnimatePresence>
-            ) : (
-              <div className="glass bg-white/[0.02] border border-white/[0.05] rounded-2xl overflow-hidden hover:border-purple-500/30 transition-all flex flex-col h-full group relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                <div className="p-5 flex-1 relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-                      <Cpu size={18} />
-                    </div>
-                    <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-1 rounded">Available</span>
-                  </div>
-                  <h3 className="text-white font-bold mb-1 font-display">Freqtrade ML</h3>
-                  <p className="text-xs text-white/40 leading-relaxed mb-4">High-performance open-source crypto trading bot powered by Hyperopt Machine Learning.</p>
-                  
-                  <div className="space-y-2 mt-auto">
-                    <div className="flex items-center justify-between text-[11px] text-white/30 bg-black/40 px-3 py-2 rounded-lg border border-white/5">
-                      <span className="flex items-center gap-1.5"><Server size={10} /> Architecture</span>
-                      <span className="text-white/50 text-right">Docker Webhook Native</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="p-4 border-t border-white/[0.05] bg-black/20 mt-auto relative z-10">
-                  <button onClick={() => attemptCreate('algo')} className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-xl hover:bg-purple-500 hover:text-white transition-all">
-                     <Play size={14} /> Setup & Deploy
-                  </button>
-                </div>
-              </div>
-            )}
             
-             {algoBots.length === 0 && (
-              <>
-              <div className="glass bg-white/[0.01] border border-white/[0.02] rounded-2xl p-5 flex flex-col opacity-40 pointer-events-none">
-                 <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400"><Bot size={18} /></div>
-                    <span className="text-[10px] bg-white/5 border border-white/10 text-white/50 px-2 py-1 rounded">Coming Soon</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {algoBots.length > 0 ? (
+                <AnimatePresence>
+                  {algoBots.map((bot) => (
+                    <BotCard key={bot.id} bot={bot} onStart={handleStart} onStop={handleStop} onDelete={handleDelete} loading={loading === bot.id} />
+                  ))}
+                </AnimatePresence>
+              ) : (
+                <div className="glass bg-white/[0.02] border border-white/[0.05] rounded-2xl overflow-hidden hover:border-purple-500/30 transition-all flex flex-col h-full group relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="p-5 flex-1 relative z-10">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                        <Cpu size={18} />
+                      </div>
+                      <span className="text-[10px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 px-2 py-1 rounded">Available</span>
+                    </div>
+                    <h3 className="text-white font-bold mb-1 font-display">Freqtrade ML</h3>
+                    <p className="text-xs text-white/40 leading-relaxed mb-4">High-performance open-source crypto trading bot powered by Hyperopt Machine Learning.</p>
+                    
+                    <div className="space-y-2 mt-auto">
+                      <div className="flex items-center justify-between text-[11px] text-white/30 bg-black/40 px-3 py-2 rounded-lg border border-white/5">
+                        <span className="flex items-center gap-1.5"><Server size={10} /> Architecture</span>
+                        <span className="text-white/50 text-right">Docker Webhook Native</span>
+                      </div>
+                    </div>
                   </div>
-                  <h3 className="text-white font-bold mb-1 font-display">Zenbot Simulator</h3>
-                  <p className="text-xs text-white/40 leading-relaxed mb-4">Lightweight Node.js trading bot capable of running AI sentiment strategies.</p>
-              </div>
-              <div className="glass bg-white/[0.01] border border-white/[0.02] rounded-2xl p-5 flex flex-col opacity-40 pointer-events-none">
-                 <div className="flex items-center justify-between mb-4">
-                    <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400"><Activity size={18} /></div>
-                    <span className="text-[10px] bg-white/5 border border-white/10 text-white/50 px-2 py-1 rounded">Coming Soon</span>
+                  <div className="p-4 border-t border-white/[0.05] bg-black/20 mt-auto relative z-10">
+                    <button onClick={() => attemptCreate('algo')} className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-xl hover:bg-purple-500 hover:text-white transition-all">
+                       <Play size={14} /> Setup & Deploy
+                    </button>
                   </div>
-                  <h3 className="text-white font-bold mb-1 font-display">OpenAlgo</h3>
-                  <p className="text-xs text-white/40 leading-relaxed mb-4">Open-source quantitative platform utilizing Python Pandas for data manipulation.</p>
+                </div>
+              )}
+              
+               {algoBots.length === 0 && (
+                <>
+                <div className="glass bg-white/[0.01] border border-white/[0.02] rounded-2xl p-5 flex flex-col opacity-40 pointer-events-none">
+                   <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400"><Bot size={18} /></div>
+                      <span className="text-[10px] bg-white/5 border border-white/10 text-white/50 px-2 py-1 rounded">Coming Soon</span>
+                    </div>
+                    <h3 className="text-white font-bold mb-1 font-display">Zenbot Simulator</h3>
+                    <p className="text-xs text-white/40 leading-relaxed mb-4">Lightweight Node.js trading bot capable of running AI sentiment strategies.</p>
+                </div>
+                <div className="glass bg-white/[0.01] border border-white/[0.02] rounded-2xl p-5 flex flex-col opacity-40 pointer-events-none">
+                   <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-400"><Activity size={18} /></div>
+                      <span className="text-[10px] bg-white/5 border border-white/10 text-white/50 px-2 py-1 rounded">Coming Soon</span>
+                    </div>
+                    <h3 className="text-white font-bold mb-1 font-display">OpenAlgo</h3>
+                    <p className="text-xs text-white/40 leading-relaxed mb-4">Open-source quantitative platform utilizing Python Pandas for data manipulation.</p>
+                </div>
+                </>
+              )}
+            </div>
+          </motion.section>
+        )}
+
+        {/* Tier 4: Running Bots */}
+        {activeTab === 'running' && (
+          <motion.section 
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="mb-14"
+          >
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex flex-col">
+                 <h2 className="text-lg font-bold text-white flex items-center gap-2">Running Bots <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded shadow-[0_0_10px_rgba(16,185,129,0.3)]">Live</span></h2>
+                 <p className="text-xs text-white/40 mt-1">Currently active strategies generating P&L.</p>
               </div>
-              </>
-            )}
-          </div>
-        </section>
+            </div>
+            {renderBotGrid(activeBots)}
+          </motion.section>
+        )}
       </main>
+
+      {/* Floating Animated Nav */}
+      <AnimatedNavFramer 
+        tabs={NAV_TABS} 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+      />
 
       {/* Create Bot Modal */}
       {modalState.show && (
@@ -318,5 +427,6 @@ export default function BotsPage() {
         />
       )}
     </div>
+    </>
   );
 }
