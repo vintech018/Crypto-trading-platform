@@ -6,10 +6,13 @@ import { motion } from 'framer-motion'
 import {
     Wallet, TrendingUp, TrendingDown, CandlestickChart,
     BarChart3, Cpu, ArrowLeft, Layers, Activity,
-    ArrowUpRight, ArrowDownRight, ChevronRight, Zap
+    ArrowUpRight, ArrowDownRight, ChevronRight, Zap, FileBarChart
 } from 'lucide-react'
+
 import { getBinanceManager } from '@/services/binanceSocket'
 import { useMarketStore } from '@/state/marketStore'
+import { api, auth, ApiResponse } from '@/lib/apiClient'
+import { ExportReports } from '@/components/terminal/ExportReports'
 
 // ─── Sub-components ─────────────────────────────────────────
 
@@ -182,15 +185,31 @@ function AIInsightCard() {
 // ─── Main Hub Page ───────────────────────────────────────────
 
 export default function HubPage() {
-    const equity = useMarketStore(s => s.equity)
-    const buyingPower = useMarketStore(s => s.buyingPower)
-    const positions = useMarketStore(s => s.positions)
-    const prices = useMarketStore(s => s.prices)
+    const equity            = useMarketStore(s => s.equity)
+    const buyingPower       = useMarketStore(s => s.walletBalance)
+    const holdings          = useMarketStore(s => s.holdings)
+    const prices            = useMarketStore(s => s.prices)
+    const totalPortValue    = useMarketStore(s => s.totalPortfolioValue)
+    const initFromBackend   = useMarketStore(s => s.initFromBackend)
+    const [userName, setUserName] = useState<string | null>(null)
+    const [mounted,  setMounted]  = useState(false)
+    const isInitialized = useMarketStore(s => s.isInitialized)
 
     // Start ticker WebSocket for live price data on hub page
     useEffect(() => {
+        if (typeof window !== 'undefined' && !auth.isLoggedIn()) {
+            window.location.href = '/login?from=%2Fhub'
+            return
+        }
+        setMounted(true)
         getBinanceManager().connectTicker()
-    }, [])
+        // Load real wallet data from backend
+        initFromBackend()
+        // Fetch user name for greeting
+        api.get<ApiResponse<{ user: { name: string; email: string } }>>('/api/auth/me')
+            .then(res => setUserName(res.data?.user?.name ?? null))
+            .catch(() => {})
+    }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
     const btcPrice = prices['BTCUSDT']?.price ?? 0
     const ethPrice = prices['ETHUSDT']?.price ?? 0
@@ -199,21 +218,34 @@ export default function HubPage() {
     const hour = now.getHours()
     const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
-    const totalUnrealizedPnl = positions.reduce((sum, pos) => {
-        const current = prices[pos.symbol]?.price
-        if (!current) return sum
-        const pnl = pos.side === 'long'
-            ? (current - pos.entryPrice) * pos.size * pos.leverage
-            : (pos.entryPrice - current) * pos.size * pos.leverage
+    const totalUnrealizedPnl = holdings.reduce((sum, h) => {
+        const tick = prices[`${h.coin}USDT`]
+        const current = tick?.price || h.currentPrice
+        const pnl = (current - h.avgBuyPrice) * h.quantity
         return sum + pnl
     }, 0)
 
-    const totalEquity = equity + totalUnrealizedPnl
-    const totalReturn = ((totalEquity - 50000) / 50000) * 100
+    const totalEquity = buyingPower + holdings.reduce((sum, h) => {
+        const tick = prices[`${h.coin}USDT`]
+        const current = tick?.price || h.currentPrice
+        return sum + current * h.quantity
+    }, 0)
+    const baseEquity = 50000 // the initial deposit from DB
+    const totalReturn = totalEquity > 0 ? ((totalEquity - baseEquity) / baseEquity) * 100 : 0
+    const displayName = userName ?? 'Trader'
+
+    if (!mounted || !isInitialized) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-black text-white/50 text-sm font-mono">
+                Loading your trading environment...
+            </div>
+        )
+    }
 
     return (
         <>
-            <style>{`
+            <style dangerouslySetInnerHTML={{
+                __html: `
         html, body { overflow-y: auto; }
         .hub-bg {
           background-color: #000;
@@ -234,7 +266,7 @@ export default function HubPage() {
           pointer-events: none;
           z-index: 0;
         }
-      `}</style>
+      ` }} />
 
             <div className="hub-bg relative" style={{ fontFamily: "'Space Grotesk', 'Inter', sans-serif" }}>
                 <div className="hub-glow" />
@@ -257,7 +289,7 @@ export default function HubPage() {
                             <Wallet size={22} className="text-white/60" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-white tracking-tight">{greeting}, Trader</h1>
+                            <h1 className="text-2xl font-bold text-white tracking-tight">{greeting}, {displayName}</h1>
                             <p className="text-sm text-white/35 mt-0.5">Your trading environment is ready.</p>
                         </div>
                         <div className="ml-auto hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
@@ -289,10 +321,10 @@ export default function HubPage() {
                         />
                         <PortfolioCard
                             label="Open Positions"
-                            value={positions.length.toString()}
-                            sub={positions.length === 0 ? 'No active trades' : `P&L: ${totalUnrealizedPnl >= 0 ? '+' : ''}$${totalUnrealizedPnl.toFixed(2)}`}
+                            value={holdings.length.toString()}
+                            sub={holdings.length === 0 ? 'No active trades' : `P&L: ${totalUnrealizedPnl >= 0 ? '+' : ''}$${totalUnrealizedPnl.toFixed(2)}`}
                             icon={Layers}
-                            glowColor={positions.length > 0 ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)'}
+                            glowColor={holdings.length > 0 ? 'rgba(16,185,129,0.12)' : 'rgba(255,255,255,0.04)'}
                         />
                     </motion.div>
 
@@ -319,10 +351,10 @@ export default function HubPage() {
                                 description="Signals · momentum · volatility"
                             />
                             <QuickActionBtn
-                                href="/terminal"
-                                icon={BarChart3}
-                                label="Portfolio Overview"
-                                description="Positions · P&L · equity curve"
+                                href="/reports"
+                                icon={FileBarChart}
+                                label="Trade Reports"
+                                description="History · P/L · Excel & PDF export"
                             />
                         </div>
                     </motion.div>
@@ -370,6 +402,18 @@ export default function HubPage() {
                             <span className="text-[9px] text-emerald-400/50 font-mono">Live via Binance</span>
                         </span>
                     </motion.div>
+
+                    {/* ── Export Reports ────────────────────────────── */}
+                    {mounted && auth.isLoggedIn() && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.4, delay: 0.3 }}
+                            className="mt-6 max-w-sm"
+                        >
+                            <ExportReports />
+                        </motion.div>
+                    )}
 
                     {/* Footer note */}
                     <div className="mt-8 text-center text-[10px] text-white/15">

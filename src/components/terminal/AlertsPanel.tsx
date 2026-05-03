@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMarketStore } from '@/state/marketStore'
 import { Bell, Plus, Trash2 } from 'lucide-react'
+import { api } from '@/lib/apiClient'
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
 
@@ -11,6 +12,8 @@ export function AlertsPanel() {
     const addAlert = useMarketStore(s => s.addAlert)
     const removeAlert = useMarketStore(s => s.removeAlert)
     const prices = useMarketStore(s => s.prices)
+    const tradeSyncId = useMarketStore(s => s.tradeSyncId)
+    const [backendAlerts, setBackendAlerts] = useState<any[]>([])
 
     const [sym, setSym] = useState('BTCUSDT')
     const [price, setPrice] = useState('')
@@ -28,6 +31,13 @@ export function AlertsPanel() {
         })
         setPrice('')
     }
+
+    // Load backend alerts
+    useEffect(() => {
+        api.get('/api/alerts')
+            .then(res => setBackendAlerts(res.data?.alerts ?? []))
+            .catch(() => { })
+    }, [tradeSyncId])
 
     return (
         <div className="flex flex-col h-full">
@@ -66,9 +76,21 @@ export function AlertsPanel() {
 
             {/* Alert list */}
             <div className="flex-1 overflow-y-auto scrollbar-none px-3 py-2 space-y-1.5">
-                {alerts.length === 0 && (
-                    <div className="text-center py-4 text-[10px] text-white/20">No alerts set</div>
+                {alerts.length === 0 && backendAlerts.length === 0 && (
+                    <div className="text-center py-4 text-[10px] text-white/20">No alerts found</div>
                 )}
+                {/* Backend Alerts */}
+                {backendAlerts.map(a => (
+                    <div key={a._id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
+                        <Bell size={9} className={a.type === 'ERROR' ? 'text-red-400' : a.type === 'SUCCESS' ? 'text-emerald-400' : 'text-blue-400'} shrink-0 />
+                        <div className="flex-1 min-w-0">
+                            <div className="text-[9px] font-bold text-white">{a.type}</div>
+                            <div className="text-[8px] text-white/60">{a.message}</div>
+                            <div className="text-[8px] text-white/30 mt-0.5">{new Date(a.createdAt).toLocaleTimeString()}</div>
+                        </div>
+                    </div>
+                ))}
+                {/* Frontend Alerts */}
                 {alerts.map(a => (
                     <div key={a.id} className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-white/[0.02] border border-white/[0.06]">
                         <Bell size={9} className="text-yellow-400 shrink-0" />

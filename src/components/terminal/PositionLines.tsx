@@ -280,7 +280,11 @@ function _hLine(
     ctx.globalAlpha = 0.93
     ctx.fillStyle   = color
     ctx.beginPath()
-    ctx.roundRect(pillX, pillY, pillW, PILL_H, 3)
+    if (ctx.roundRect) {
+        ctx.roundRect(pillX, pillY, pillW, PILL_H, 3)
+    } else {
+        ctx.rect(pillX, pillY, pillW, PILL_H)
+    }
     ctx.fill()
 
     ctx.globalAlpha = 1

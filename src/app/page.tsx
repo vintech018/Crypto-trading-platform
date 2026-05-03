@@ -1,5 +1,5 @@
+import dynamic from 'next/dynamic'
 import { Navbar } from "@/components/Navbar";
-import { Hero } from "@/components/Hero";
 import { CryptoTicker } from "@/components/CryptoTicker";
 import { TerminalPreview } from "@/components/TerminalPreview";
 import CryptoGrid from "@/components/CryptoGrid";
@@ -11,6 +11,11 @@ import { LeaderboardPreview } from "@/components/LeaderboardPreview";
 import { TrustSection } from "@/components/TrustSection";
 import { CTA } from "@/components/CTA";
 import { Footer } from "@/components/Footer";
+
+const Hero = dynamic(() => import('@/components/Hero').then(mod => mod.Hero), {
+    ssr: false,
+    loading: () => <div className="min-h-screen bg-black" />
+})
 
 export default function Home() {
   return (

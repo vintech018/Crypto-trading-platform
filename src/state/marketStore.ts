@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { api, ApiResponse } from '@/lib/apiClient'
+import type { Socket } from 'socket.io-client'
 
 export interface PriceTick {
     symbol: string
@@ -57,6 +59,17 @@ export interface Alert {
     timestamp: number
 }
 
+// ── Backend holding shape ─────────────────────────────────────
+export interface BackendHolding {
+    coin: string
+    quantity: number
+    avgBuyPrice: number
+    currentPrice: number
+    currentValue: number
+    unrealisedPnL: number
+    pnlPercent: number
+}
+
 interface MarketStore {
     // Prices
     prices: Record<string, PriceTick>
@@ -88,6 +101,18 @@ interface MarketStore {
     closePosition: (id: string) => void
     updateEquity: () => void
 
+    // Backend holdings (real crypto positions from DB)
+    holdings: BackendHolding[]
+    walletBalance: number
+    totalPortfolioValue: number
+
+    // Sync actions
+    isLoadingWallet: boolean
+    loadWalletFromBackend: () => Promise<void>
+    addHoldingFromTrade: (coin: string, quantity: number, price: number, type: 'buy' | 'sell') => void
+    tradeSyncId: number
+    triggerTradeSync: () => void
+
     // Alerts
     alerts: Alert[]
     addAlert: (alert: Alert) => void
@@ -100,10 +125,15 @@ interface MarketStore {
     // Keyboard shortcut focus
     focusPanel: string | null
     setFocusPanel: (panel: string | null) => void
+
+    // Auth-aware init
+    isInitialized: boolean
+    socket: Socket | null
+    initFromBackend: () => Promise<void>
 }
 
-const INITIAL_EQUITY = 50000
-const INITIAL_BUYING_POWER = 150000
+const INITIAL_EQUITY = 100000
+const INITIAL_BUYING_POWER = 100000
 
 export const useMarketStore = create<MarketStore>((set, get) => ({
     prices: {},
@@ -139,15 +169,149 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
     positions: [],
     portfolioHistory: [{ time: Date.now(), equity: INITIAL_EQUITY }],
 
+    // Backend state
+    holdings: [],
+    walletBalance: INITIAL_EQUITY,
+    totalPortfolioValue: INITIAL_EQUITY,
+    isInitialized: false,
+    isLoadingWallet: false,
+    socket: null,
+    tradeSyncId: 0,
+    triggerTradeSync: () => set(state => ({ tradeSyncId: state.tradeSyncId + 1 })),
+
+    // ── Load wallet + portfolio from backend ──────────────────
+    loadWalletFromBackend: async () => {
+        set({ isLoadingWallet: true })
+        try {
+            const [walletRes, portfolioRes] = await Promise.all([
+                api.get<ApiResponse<{ balance: number; updatedAt: string }>>('/api/wallet/balance'),
+                api.get<ApiResponse<{
+                    walletBalance: number
+                    holdings: BackendHolding[]
+                    totalUnrealisedPnL: number
+                    totalHoldingsValue: number
+                    totalPortfolioValue: number
+                }>>('/api/user/portfolio'),
+            ])
+
+            const walletBalance = walletRes.data?.balance ?? get().walletBalance
+            const portfolio = portfolioRes.data
+
+            set({
+                walletBalance,
+                buyingPower: walletBalance,   // buying power = cash balance
+                equity: walletBalance + (portfolio?.totalHoldingsValue ?? 0),
+                holdings: portfolio?.holdings ?? get().holdings,
+                totalPortfolioValue: portfolio?.totalPortfolioValue ?? walletBalance,
+            })
+        } catch (err) {
+            console.error('[Solidus] Critical error loading wallet from backend:', err)
+            // Do not wipe out wallet state on failure, just leave it as is.
+            // A toast or UI alert can be shown if needed, but don't reset to 0.
+        } finally {
+            set({ isLoadingWallet: false })
+        }
+    },
+
+    // ── Full init (called on app load after auth) ─────────────
+    initFromBackend: async () => {
+        if (get().isInitialized) return
+        set({ isInitialized: true })
+
+        try {
+            await get().loadWalletFromBackend()
+        } catch (e) {
+            // Reset init flag so it can be retried
+            set({ isInitialized: false })
+            return
+        }
+
+        // Only run socket.io in the browser (dynamic import = no SSR crash)
+        if (typeof window === 'undefined') return
+
+        const { io } = await import('socket.io-client')
+        const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050', {
+            withCredentials: true,
+        })
+
+        socket.on('trade:update', (data) => {
+            if (data.portfolio) {
+                set({
+                    walletBalance: data.portfolio.walletBalance,
+                    buyingPower: data.portfolio.walletBalance,
+                    equity: data.portfolio.walletBalance + (data.portfolio.totalHoldingsValue ?? 0),
+                    holdings: data.portfolio.holdings ?? [],
+                    totalPortfolioValue: data.portfolio.totalPortfolioValue ?? data.portfolio.walletBalance,
+                })
+            }
+            get().triggerTradeSync()
+        })
+
+        set({ socket })
+    },
+
+    // ── Optimistic portfolio update after trade ───────────────
+    addHoldingFromTrade: (coin, quantity, price, type) => {
+        set(state => {
+            const existing = state.holdings.find(h => h.coin === coin)
+            let newHoldings: BackendHolding[]
+
+            if (type === 'buy') {
+                if (existing) {
+                    const newQty = existing.quantity + quantity
+                    const newAvg = (existing.avgBuyPrice * existing.quantity + price * quantity) / newQty
+                    newHoldings = state.holdings.map(h =>
+                        h.coin === coin
+                            ? { ...h, quantity: newQty, avgBuyPrice: newAvg, currentPrice: price, currentValue: newQty * price }
+                            : h
+                    )
+                } else {
+                    newHoldings = [
+                        ...state.holdings,
+                        {
+                            coin,
+                            quantity,
+                            avgBuyPrice: price,
+                            currentPrice: price,
+                            currentValue: quantity * price,
+                            unrealisedPnL: 0,
+                            pnlPercent: 0,
+                        },
+                    ]
+                }
+                const spent = quantity * price
+                return {
+                    holdings: newHoldings,
+                    walletBalance: Math.max(0, state.walletBalance - spent),
+                    buyingPower: Math.max(0, state.buyingPower - spent),
+                }
+            } else {
+                // sell
+                newHoldings = state.holdings
+                    .map(h => {
+                        if (h.coin !== coin) return h
+                        const newQty = Math.max(0, h.quantity - quantity)
+                        return newQty > 0 ? { ...h, quantity: newQty, currentValue: newQty * price } : null
+                    })
+                    .filter(Boolean) as BackendHolding[]
+
+                const received = quantity * price
+                return {
+                    holdings: newHoldings,
+                    walletBalance: state.walletBalance + received,
+                    buyingPower: state.buyingPower + received,
+                }
+            }
+        })
+    },
+
     addPosition: pos => {
         const cost = (pos.entryPrice * pos.size) / pos.leverage
         set(state => {
-            const newBuyingPower = state.buyingPower - cost * pos.leverage
             const newMarginUsed = state.marginUsed + cost
             const newPositions = [...state.positions, pos]
             return {
                 positions: newPositions,
-                buyingPower: Math.max(0, newBuyingPower),
                 marginUsed: newMarginUsed,
             }
         })

@@ -69,8 +69,8 @@ export function Hero() {
     return (
         <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
             {/* 3D Background */}
-            <div className="absolute inset-0 z-0">
-                <Canvas camera={{ position: [0, 0, 8], fov: 45 }}>
+            <div className="absolute inset-0 z-0 pointer-events-none">
+                <Canvas camera={{ position: [0, 0, 12], fov: 45 }}>
                     <ambientLight intensity={0.5} />
                     <pointLight position={[10, 10, 10]} intensity={2} color="#ffffff" />
                     <ParticleSphere />

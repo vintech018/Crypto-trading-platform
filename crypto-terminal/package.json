@@ -13,6 +13,10 @@
     "dev:frontend": "npm run dev --workspace frontend",
     "start:backend": "npm run start --workspace backend",
     "start:frontend": "npm run start --workspace frontend",
-    "build:frontend": "npm run build --workspace frontend"
+    "build:frontend": "npm run build --workspace frontend",
+    "dev": "concurrently -n \"TERMINAL-API,TERMINAL-UI\" -c \"blue,yellow\" \"npm run dev:backend\" \"npm run dev:frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

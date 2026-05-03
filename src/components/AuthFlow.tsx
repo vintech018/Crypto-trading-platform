@@ -1,17 +1,15 @@
 "use client";
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DotPattern } from '@/components/DotPattern'
 import { useRouter } from 'next/navigation'
 
 // ============================================================
-//  🔑 REPLACE THESE WITH YOUR REAL KEYS WHEN READY
+//  Backend URL — used for API calls and OAuth redirects
 // ============================================================
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5050'
 const APPLE_SERVICE_ID = 'com.yourapp.service'
 const APPLE_REDIRECT_URI = 'https://yourapp.com/auth/apple/callback'
-// Backend API URL
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5050'
 // ============================================================
 
 /* ── Scoped styles ── */
@@ -590,6 +588,35 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
     const [toast, setToast] = useState<{ msg: string, type: string } | null>(null)
     const [loggedUser, setLoggedUser] = useState<any>(null)
 
+    // Helper for redirection — use hard redirect to ensure cookies are seen by middleware
+    const navigateNext = () => {
+        if (typeof window === 'undefined') return
+        const params = new URLSearchParams(window.location.search)
+        const from = params.get('from')
+        window.location.href = from || '/hub'
+    }
+
+    // Read OAuth error codes redirected back from the backend
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const params = new URLSearchParams(window.location.search)
+        const err = params.get('error')
+        if (!err) return
+        const messages: Record<string, string> = {
+            NOT_REGISTERED: 'No account found. Please sign up first.',
+            ALREADY_EXISTS: 'An account with this email already exists. Please log in instead.',
+            oauth_failed:   'Google sign-in failed. Please try again.',
+        }
+        const msg = messages[err] || 'Authentication failed. Please try again.'
+        // Auto-switch tab based on error type
+        if (err === 'NOT_REGISTERED') setTab('signup')
+        if (err === 'ALREADY_EXISTS') setTab('login')
+        setToast({ msg, type: 'error' })
+        setTimeout(() => setToast(null), 5000)
+        // Clean URL so the error doesn't persist on refresh
+        window.history.replaceState({}, '', window.location.pathname)
+    }, [])
+
     /* Login state */
     const [lEmail, setLEmail] = useState('')
     const [lPass, setLPass] = useState('')
@@ -622,28 +649,23 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
         if (Object.keys(e).length) { setLErr(e); return }
         setLErr({}); setLLoading(true)
         try {
-            const res = await fetch(`${BACKEND_URL}/auth/login`, {
+            const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: lEmail, password: lPass }),
             })
             const data = await res.json()
-            if (!res.ok) {
-                setLErr({ pass: data.message || 'Invalid email or password' })
+            if (!data.success) {
+                fire(data.message || 'Login failed', 'error')
                 setLLoading(false)
                 return
             }
-            if (data.accessToken) {
-                localStorage.setItem('accessToken', data.accessToken)
-                fire('Welcome back to Solidus! 🎉')
-                setTimeout(() => router.push('/dashboard'), 1500)
-            } else if (data.requires2fa || data.requires2faSetup) {
-                localStorage.setItem('twoFaToken', data.twoFaToken)
-                fire('2FA required — please verify via authenticator app', 'error')
-            } else {
-                fire('Welcome back to Solidus! 🎉')
-                setTimeout(() => router.push('/dashboard'), 1500)
-            }
+            localStorage.setItem('accessToken', data.data.accessToken)
+            localStorage.setItem('refreshToken', data.data.refreshToken)
+            // Set auth cookie for Next.js middleware route guard
+            document.cookie = 'solidus_authed=true; path=/; max-age=604800; SameSite=Lax'
+            fire('Welcome back to Solidus! 🎉')
+            setTimeout(navigateNext, 1200)
         } catch {
             fire('Cannot connect to server. Is the backend running?', 'error')
         }
@@ -662,24 +684,23 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
         if (Object.keys(e).length) { setSErr(e); return }
         setSErr({}); setSLoading(true)
         try {
-            const res = await fetch(`${BACKEND_URL}/auth/signup`, {
+            const res = await fetch(`${BACKEND_URL}/api/auth/signup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: sEmail, password: sPass }),
+                body: JSON.stringify({ name: sEmail.split('@')[0], email: sEmail, password: sPass }),
             })
             const data = await res.json()
-            if (!res.ok) {
-                if (res.status === 409) setSErr({ email: 'This email is already registered' })
-                else setSErr({ email: data.message || 'Signup failed. Please try again.' })
+            if (!data.success) {
+                fire(data.message || 'Signup failed', 'error')
                 setSLoading(false)
                 return
             }
-            // After signup, backend requires 2FA setup
-            if (data.twoFaToken) {
-                localStorage.setItem('twoFaToken', data.twoFaToken)
-            }
+            localStorage.setItem('accessToken', data.data.accessToken)
+            localStorage.setItem('refreshToken', data.data.refreshToken)
+            // Set auth cookie for Next.js middleware route guard
+            document.cookie = 'solidus_authed=true; path=/; max-age=604800; SameSite=Lax'
             fire('Account created! Welcome to Solidus 🚀')
-            setTimeout(() => router.push('/dashboard'), 1500)
+            setTimeout(navigateNext, 1200)
         } catch {
             fire('Cannot connect to server. Is the backend running?', 'error')
         }
@@ -692,7 +713,7 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
 
     return (
         <>
-            <style>{css}</style>
+            <style dangerouslySetInnerHTML={{ __html: css }} />
             <div className="s-page relative w-full h-full">
                 <DotPattern
                     dotSize={2}
@@ -751,7 +772,7 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
                                 {lLoading ? 'Signing in…' : 'Continue'}
                             </button>
                             <div className="s-divider">or</div>
-                            <button className="s-social" onClick={() => setModal('google')}><GIcon /> Continue with Google</button>
+                            <button className="s-social" onClick={() => { window.location.href = `${BACKEND_URL}/api/auth/google?mode=login` }}><GIcon /> Continue with Google</button>
                             <button className="s-social" onClick={() => setModal('apple')}><AIcon /> Continue with Apple</button>
                             <div className="s-footer">
                                 Don't have an account?{' '}
@@ -816,7 +837,7 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
                                 {sLoading ? 'Creating account…' : 'Create Account'}
                             </button>
                             <div className="s-divider">or</div>
-                            <button className="s-social" onClick={() => setModal('google')}><GIcon /> Continue with Google</button>
+                            <button className="s-social" onClick={() => { window.location.href = `${BACKEND_URL}/api/auth/google?mode=signup` }}><GIcon /> Continue with Google</button>
                             <button className="s-social" onClick={() => setModal('apple')}><AIcon /> Continue with Apple</button>
                             <div className="s-footer">
                                 Already have an account?{' '}

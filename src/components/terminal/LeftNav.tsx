@@ -5,8 +5,9 @@ import { getBinanceManager } from '@/services/binanceSocket'
 import Link from 'next/link'
 import {
     LayoutDashboard, TrendingUp, BookOpen, Activity,
-    Zap, Cpu, Waves, Grid3X3, Bell, Settings, ChevronRight
+    Cpu, Waves, Grid3X3, Bell, Settings, ClipboardList, History, BarChart3
 } from 'lucide-react'
+
 
 const COINS = [
     { sym: 'BTCUSDT', label: 'BTC', color: '#f7931a' },
@@ -20,14 +21,16 @@ const COINS = [
 ]
 
 const NAV_ITEMS = [
-    { id: 'chart', icon: LayoutDashboard, label: 'Chart' },
-    { id: 'orderbook', icon: BookOpen, label: 'Order Book' },
-    { id: 'trades', icon: Activity, label: 'Trades' },
-    { id: 'portfolio', icon: TrendingUp, label: 'Portfolio' },
-    { id: 'ai', icon: Cpu, label: 'AI Engine' },
-    { id: 'whale', icon: Waves, label: 'Whale Tracker' },
-    { id: 'onchain', icon: Grid3X3, label: 'On-Chain' },
-    { id: 'alerts', icon: Bell, label: 'Alerts' },
+    { id: 'chart',     icon: LayoutDashboard, label: 'Chart'          },
+    { id: 'orderbook', icon: BookOpen,         label: 'Order Book'    },
+    { id: 'trades',    icon: Activity,         label: 'Trades'        },
+    { id: 'orders',    icon: ClipboardList,    label: 'Open Orders'   },
+    { id: 'history',   icon: History,          label: 'Trade History' },
+    { id: 'portfolio', icon: TrendingUp,        label: 'Portfolio'    },
+    { id: 'ai',        icon: Cpu,              label: 'AI Engine'     },
+    { id: 'whale',     icon: Waves,            label: 'Whale Tracker' },
+    { id: 'onchain',   icon: Grid3X3,          label: 'On-Chain'      },
+    { id: 'alerts',    icon: Bell,             label: 'Alerts'        },
 ]
 
 export function LeftNav() {
@@ -112,11 +115,15 @@ export function LeftNav() {
                 })}
             </div>
 
-            {/* Settings */}
-            <div className="pb-3 flex justify-center">
-                <button className="w-10 h-10 rounded-lg flex items-center justify-center text-white/20 hover:text-white/50 hover:bg-white/5 transition-all">
+            {/* Settings → Reports */}
+            <div className="pb-3 flex flex-col items-center gap-1.5">
+                <Link href="/reports" title="Trade Reports" className="w-10 h-10 rounded-lg flex items-center justify-center text-white/20 hover:text-white/60 hover:bg-white/5 transition-all group relative">
+                    <BarChart3 size={15} />
+                    <span className="absolute left-full ml-2 px-2 py-1 bg-[#111] border border-white/10 rounded text-[10px] text-white whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">Trade Reports</span>
+                </Link>
+                <Link href="/hub" title="Settings" className="w-10 h-10 rounded-lg flex items-center justify-center text-white/20 hover:text-white/50 hover:bg-white/5 transition-all">
                     <Settings size={15} />
-                </button>
+                </Link>
             </div>
         </div>
     )

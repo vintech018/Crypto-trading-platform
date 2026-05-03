@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SOLIDUS — Live API Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0e1a;
+      --surface:   #111827;
+      --surface2:  #1a2236;
+      --border:    #1f2d44;
+      --accent:    #6366f1;
+      --accent2:   #818cf8;
+      --green:     #10b981;
+      --red:       #ef4444;
+      --yellow:    #f59e0b;
+      --text:      #e2e8f0;
+      --muted:     #64748b;
+      --code-bg:   #0d1117;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── Header ─────────────────────────────────────────── */
+    header {
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, var(--accent), #a855f7);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 0 20px rgba(99,102,241,0.4);
+    }
+
+    .logo h1 { font-size: 22px; font-weight: 700; letter-spacing: 2px; }
+    .logo span { font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+
+    .status-badge {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(16,185,129,0.1);
+      border: 1px solid rgba(16,185,129,0.3);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 13px; color: var(--green);
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* ─── Layout ─────────────────────────────────────────── */
+    main {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      flex: 1;
+      gap: 0;
+    }
+
+    /* ─── Sidebar ────────────────────────────────────────── */
+    aside {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+      overflow-y: auto;
+      position: sticky;
+      top: 0;
+      height: calc(100vh - 81px);
+    }
+
+    .sidebar-section { padding: 0 16px 8px; }
+    .sidebar-label {
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 1.5px; color: var(--muted);
+      text-transform: uppercase;
+      padding: 12px 8px 6px;
+    }
+
+    .endpoint-btn {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; padding: 9px 12px;
+      background: transparent; border: none; border-radius: 8px;
+      cursor: pointer; color: var(--text); font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      transition: all 0.15s; text-align: left;
+      margin-bottom: 2px;
+    }
+
+    .endpoint-btn:hover { background: var(--surface2); }
+    .endpoint-btn.active { background: rgba(99,102,241,0.15); color: var(--accent2); }
+
+    .method-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px; font-weight: 500;
+      padding: 2px 6px; border-radius: 4px;
+      min-width: 38px; text-align: center;
+    }
+
+    .get  { background: rgba(16,185,129,0.15); color: #10b981; }
+    .post { background: rgba(99,102,241,0.15); color: #818cf8; }
+
+    .endpoint-path { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+    /* ─── Content area ───────────────────────────────────── */
+    .content {
+      padding: 32px 40px;
+      overflow-y: auto;
+      max-height: calc(100vh - 81px);
+    }
+
+    /* ─── Token Console ──────────────────────────────────── */
+    .token-bar {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 28px;
+      display: flex; align-items: center; gap: 12px;
+    }
+
+    .token-bar .label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+    .token-bar .val {
+      font-family: 'JetBrains Mono', monospace; font-size: 11px;
+      color: var(--accent2); word-break: break-all; flex: 1;
+    }
+
+    /* ─── Card ───────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .card-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 12px;
+    }
+
+    .card-title { font-size: 15px; font-weight: 600; }
+    .card-desc  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .card-body { padding: 24px; }
+
+    /* ─── Form ───────────────────────────────────────────── */
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 12px; color: var(--muted); font-weight: 500; }
+
+    .field input, .field select {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+
+    .field input:focus, .field select:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+    }
+
+    .field select option { background: var(--surface); }
+
+    /* ─── Run button ─────────────────────────────────────── */
+    .run-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 24px;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      border: none; border-radius: 8px;
+      color: white; font-size: 14px; font-weight: 600;
+      cursor: pointer; font-family: 'Inter', sans-serif;
+      transition: all 0.2s;
+      margin-top: 12px;
+    }
+
+    .run-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(99,102,241,0.4); }
+    .run-btn:active { transform: translateY(0); }
+    .run-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ─── Response panel ─────────────────────────────────── */
+    .response-panel {
+      margin-top: 20px;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .response-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 12px;
+    }
+
+    .response-header .status-ok  { color: var(--green); font-weight: 600; }
+    .response-header .status-err { color: var(--red);   font-weight: 600; }
+    .response-header .latency    { color: var(--muted); }
+
+    pre.response-body {
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 450px;
+      overflow-y: auto;
+      color: #a5b4fc;
+    }
+
+    /* JSON syntax highlighting */
+    .json-key    { color: #93c5fd; }
+    .json-str    { color: #86efac; }
+    .json-num    { color: #fcd34d; }
+    .json-bool   { color: #f9a8d4; }
+    .json-null   { color: var(--muted); }
+
+    /* ─── Stats row ──────────────────────────────────────── */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .stat-val { font-size: 26px; font-weight: 700; color: var(--accent2); }
+    .stat-lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* ─── Toast ──────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px 20px;
+      font-size: 13px; color: var(--text);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transform: translateY(80px); opacity: 0;
+      transition: all 0.3s; z-index: 999;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.ok   { border-left: 3px solid var(--green); }
+    .toast.err  { border-left: 3px solid var(--red); }
+
+    /* ─── Spinner ────────────────────────────────────────── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">💎</div>
+    <div>
+      <h1>SOLIDUS</h1>
+      <span>MONGODB API EXPLORER</span>
+    </div>
+  </div>
+  <div class="status-badge">
+    <div class="dot"></div>
+    <span id="db-status">Connecting…</span>
+  </div>
+</header>
+
+<main>
+  <!-- Sidebar -->
+  <aside>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Auth</div>
+      <button class="endpoint-btn active" onclick="showPanel('signup')">
+        <span class="method-tag post">POST</span>
+        <span class="endpoint-path">/auth/signup</span>
+      </button>
+      <button class="endpoint-btn" onclick="showPanel('login')">
+        <span class="method-tag post">POST</span>
+        <span class="endpoint-path">/auth/login</span>
+      </button>
+      <button class="endpoint-btn" onclick="showPanel('me')">
+        <span class="method-tag get">GET</span>
+        <span class="endpoint-path">/auth/me</span>
+      </button>
+      <button class="endpoint-btn" onclick="showPanel('refresh')">
+        <span class="method-tag post">POST</span>
+        <span class="endpoint-path">/auth/refresh</span>
+      </button>
+      <button class="endpoint-btn" onclick="showPanel('logout')">
+        <span class="method-tag post">POST</span>
+        <span class="endpoint-path">/auth/logout</span>
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Wallet</div>
+      <button class="endpoint-btn" onclick="showPanel('deposit')">
+        <span class="method-tag post">POST</span>
+        <span class="endpoint-path">/trade/deposit</span>
+      </button>
+      <button class="endpoint-btn" onclick="showPanel('balance')">
+        <span class="method-tag get">GET</span>
+        <span class="endpoint-path">/wallet/balance</span>
+      </button>
+      <button class="endpoint-btn" onclick="showPanel('ledger')">
+        <span class="method-tag get">GET</span>
+        <span class="endpoint-path">/wallet/ledger</span>
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Trade</div>
+      <button class="endpoint-btn" onclick="showPanel('buy')">
+        <span class="method-tag post">POST</span>
+        <span class="endpoint-path">/trade/buy</span>
+      </button>
+      <button class="endpoint-btn" onclick="showPanel('sell')">
+        <span class="method-tag post">POST</span>
+        <span class="endpoint-path">/trade/sell</span>
+      </button>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Reports</div>
+      <button class="endpoint-btn" onclick="showPanel('portfolio')">
+        <span class="method-tag get">GET</span>
+        <span class="endpoint-path">/user/portfolio</span>
+      </button>
+      <button class="endpoint-btn" onclick="showPanel('reports')">
+        <span class="method-tag get">GET</span>
+        <span class="endpoint-path">/reports</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <div class="content">
+
+    <!-- Token bar -->
+    <div class="token-bar">
+      <span class="label">🔑 Access Token</span>
+      <span class="val" id="token-display">— not logged in —</span>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-val" id="stat-calls">0</div>
+        <div class="stat-lbl">API Calls Made</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stat-ok" style="color:#10b981">0</div>
+        <div class="stat-lbl">Successful</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="stat-err" style="color:#ef4444">0</div>
+        <div class="stat-lbl">Errors</div>
+      </div>
+    </div>
+
+    <!-- Dynamic panel area -->
+    <div id="panel-area"></div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const BASE = 'http://localhost:5050/api';
+  let token = '', refreshToken = '', calls = 0, oks = 0, errs = 0;
+
+  // ── Health check ──────────────────────────────────────────────
+  fetch('http://localhost:5050/health')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('db-status').textContent =
+        d.status === 'ok' ? '✅ MongoDB Connected · Port 5050' : '⚠ ' + d.status;
+    })
+    .catch(() => {
+      document.getElementById('db-status').textContent = '❌ Server Unreachable';
+    });
+
+  // ── Panel definitions ─────────────────────────────────────────
+  const panels = {
+    signup: {
+      method: 'POST', path: '/auth/signup',
+      title: 'Sign Up', desc: 'Create a new user account — returns access + refresh tokens',
+      fields: [
+        { id: 'su_name',  label: 'Name',     type: 'text',     val: 'Demo User' },
+        { id: 'su_email', label: 'Email',     type: 'email',    val: '' },
+        { id: 'su_pass',  label: 'Password',  type: 'password', val: 'Demo@1234!', full: true },
+      ],
+      buildBody: () => ({
+        name:     document.getElementById('su_name').value,
+        email:    document.getElementById('su_email').value,
+        password: document.getElementById('su_pass').value,
+      }),
+      onSuccess: (d) => {
+        token = d.data.accessToken; refreshToken = d.data.refreshToken;
+        document.getElementById('token-display').textContent = token.slice(0,60) + '…';
+        toast('✅ Logged in — token stored', 'ok');
+      }
+    },
+    login: {
+      method: 'POST', path: '/auth/login',
+      title: 'Login', desc: 'Authenticate with email + password — returns tokens',
+      fields: [
+        { id: 'li_email', label: 'Email',    type: 'email',    val: '' },
+        { id: 'li_pass',  label: 'Password', type: 'password', val: 'Demo@1234!', full: true },
+      ],
+      buildBody: () => ({
+        email:    document.getElementById('li_email').value,
+        password: document.getElementById('li_pass').value,
+      }),
+      onSuccess: (d) => {
+        token = d.data.accessToken; refreshToken = d.data.refreshToken;
+        document.getElementById('token-display').textContent = token.slice(0,60) + '…';
+        toast('✅ Logged in — token stored', 'ok');
+      }
+    },
+    me: {
+      method: 'GET', path: '/auth/me', auth: true,
+      title: 'Get Current User', desc: 'Returns the authenticated user from the JWT payload',
+      fields: [],
+    },
+    refresh: {
+      method: 'POST', path: '/auth/refresh',
+      title: 'Refresh Token', desc: 'Exchange refresh token for a new access token',
+      fields: [],
+      buildBody: () => ({ refreshToken }),
+      onSuccess: (d) => {
+        token = d.data.accessToken;
+        document.getElementById('token-display').textContent = token.slice(0,60) + '…';
+        toast('✅ New access token stored', 'ok');
+      }
+    },
+    logout: {
+      method: 'POST', path: '/auth/logout', auth: true,
+      title: 'Logout', desc: 'Invalidates the access token (blacklist) + revokes refresh token',
+      fields: [],
+      onSuccess: () => {
+        token = ''; refreshToken = '';
+        document.getElementById('token-display').textContent = '— not logged in —';
+        toast('✅ Logged out', 'ok');
+      }
+    },
+    deposit: {
+      method: 'POST', path: '/trade/deposit', auth: true,
+      title: 'Deposit Funds', desc: 'Add fiat balance to your wallet',
+      fields: [{ id: 'dep_amt', label: 'Amount (USD)', type: 'number', val: '10000', full: true }],
+      buildBody: () => ({ amount: parseFloat(document.getElementById('dep_amt').value) }),
+    },
+    balance: {
+      method: 'GET', path: '/wallet/balance', auth: true,
+      title: 'Wallet Balance', desc: 'Returns the current wallet balance in USD',
+      fields: [],
+    },
+    ledger: {
+      method: 'GET', path: '/wallet/ledger', auth: true,
+      title: 'Transaction Ledger', desc: 'Full audit trail — DEPOSIT, BUY, SELL entries',
+      fields: [
+        { id: 'led_page',  label: 'Page',  type: 'number', val: '1' },
+        { id: 'led_limit', label: 'Limit', type: 'number', val: '20' },
+      ],
+      buildQuery: () => `?page=${document.getElementById('led_page').value}&limit=${document.getElementById('led_limit').value}`,
+    },
+    buy: {
+      method: 'POST', path: '/trade/buy', auth: true,
+      title: 'Buy Crypto', desc: 'Execute a BUY order — deducts wallet, updates holdings + ledger',
+      fields: [
+        { id: 'buy_coin', label: 'Coin',     type: 'select', opts: ['BTC','ETH','BNB','SOL','XRP','ADA','DOGE','AVAX','MATIC','DOT'], val: 'BTC' },
+        { id: 'buy_qty',  label: 'Quantity', type: 'number', val: '0.01' },
+        { id: 'buy_pr',   label: 'Price (USD per unit)', type: 'number', val: '65000' },
+      ],
+      buildBody: () => ({
+        coin:     document.getElementById('buy_coin').value,
+        quantity: parseFloat(document.getElementById('buy_qty').value),
+        price:    parseFloat(document.getElementById('buy_pr').value),
+      }),
+    },
+    sell: {
+      method: 'POST', path: '/trade/sell', auth: true,
+      title: 'Sell Crypto', desc: 'Execute a SELL order — credits wallet, calculates realisedPnL',
+      fields: [
+        { id: 'sel_coin', label: 'Coin',     type: 'select', opts: ['BTC','ETH','BNB','SOL','XRP','ADA','DOGE','AVAX','MATIC','DOT'], val: 'BTC' },
+        { id: 'sel_qty',  label: 'Quantity', type: 'number', val: '0.005' },
+        { id: 'sel_pr',   label: 'Price (USD per unit)', type: 'number', val: '70000' },
+      ],
+      buildBody: () => ({
+        coin:     document.getElementById('sel_coin').value,
+        quantity: parseFloat(document.getElementById('sel_qty').value),
+        price:    parseFloat(document.getElementById('sel_pr').value),
+      }),
+    },
+    portfolio: {
+      method: 'GET', path: '/user/portfolio', auth: true,
+      title: 'Portfolio', desc: 'Holdings enriched with live market prices and unrealised P&L',
+      fields: [],
+    },
+    reports: {
+      method: 'GET', path: '/reports', auth: true,
+      title: 'Financial Reports', desc: 'Trade history, realised/unrealised PnL, monthly breakdown',
+      fields: [
+        { id: 'rep_start', label: 'Start Date', type: 'date', val: '' },
+        { id: 'rep_end',   label: 'End Date',   type: 'date', val: '' },
+      ],
+      buildQuery: () => {
+        const s = document.getElementById('rep_start').value;
+        const e = document.getElementById('rep_end').value;
+        const p = []; if (s) p.push('startDate='+s); if (e) p.push('endDate='+e);
+        return p.length ? '?' + p.join('&') : '';
+      },
+    },
+  };
+
+  // ── Render panel ──────────────────────────────────────────────
+  function showPanel(id) {
+    document.querySelectorAll('.endpoint-btn').forEach(b => b.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+
+    const p = panels[id];
+    const isPost = p.method === 'POST';
+    const methodCls = p.method === 'GET' ? 'get' : 'post';
+
+    // pre-fill email on signup
+    if (id === 'signup') {
+      const ts = Date.now();
+      setTimeout(() => {
+        const el = document.getElementById('su_email');
+        if (el && !el.value) el.value = `user_${ts}@solidus.io`;
+      }, 50);
+    }
+
+    document.getElementById('panel-area').innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <span class="method-tag ${methodCls}">${p.method}</span>
+          <div>
+            <div class="card-title">${p.title}</div>
+            <div class="card-desc">${p.desc}</div>
+          </div>
+        </div>
+        <div class="card-body">
+          ${renderFields(p)}
+          <button class="run-btn" id="run-btn" onclick="runRequest('${id}')">
+            <span id="btn-icon">▶</span>
+            <span class="spinner" id="spinner"></span>
+            <span id="btn-label">Send Request</span>
+          </button>
+          <div id="response-area"></div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderFields(p) {
+    if (!p.fields || !p.fields.length) return '';
+    let rows = '', pair = [];
+
+    for (const f of p.fields) {
+      const el = f.type === 'select'
+        ? `<select id="${f.id}">${f.opts.map(o=>`<option value="${o}"${o===f.val?' selected':''}>${o}</option>`).join('')}</select>`
+        : `<input type="${f.type}" id="${f.id}" value="${f.val||''}" placeholder="${f.label}"/>`;
+
+      if (f.full) {
+        if (pair.length) { rows += `<div class="form-row">${pair.join('')}</div>`; pair = []; }
+        rows += `<div class="form-row"><div class="field" style="grid-column:1/-1"><label>${f.label}</label>${el}</div></div>`;
+      } else {
+        pair.push(`<div class="field"><label>${f.label}</label>${el}</div>`);
+        if (pair.length === 2) { rows += `<div class="form-row">${pair.join('')}</div>`; pair = []; }
+      }
+    }
+    if (pair.length) rows += `<div class="form-row">${pair.join('')}</div>`;
+    return rows;
+  }
+
+  // ── Execute request ───────────────────────────────────────────
+  async function runRequest(id) {
+    const p = panels[id];
+    const btn = document.getElementById('run-btn');
+    const spinner = document.getElementById('spinner');
+    const icon = document.getElementById('btn-icon');
+    const label = document.getElementById('btn-label');
+
+    btn.disabled = true;
+    spinner.style.display = 'block';
+    icon.style.display = 'none';
+    label.textContent = 'Sending…';
+
+    const query = p.buildQuery ? p.buildQuery() : '';
+    const url   = BASE + p.path + query;
+    const opts  = { method: p.method, headers: {} };
+
+    if (p.auth) opts.headers['Authorization'] = 'Bearer ' + token;
+    if (p.buildBody) {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(p.buildBody());
+    }
+
+    const t0 = Date.now();
+    let data, httpStatus;
+    try {
+      const res  = await fetch(url, opts);
+      httpStatus = res.status;
+      data = await res.json();
+    } catch (e) {
+      data = { success: false, message: e.message };
+      httpStatus = 0;
+    }
+
+    const ms = Date.now() - t0;
+    calls++; httpStatus >= 200 && httpStatus < 300 ? oks++ : errs++;
+    document.getElementById('stat-calls').textContent = calls;
+    document.getElementById('stat-ok').textContent   = oks;
+    document.getElementById('stat-err').textContent  = errs;
+
+    btn.disabled = false;
+    spinner.style.display = 'none';
+    icon.style.display = 'inline';
+    label.textContent = 'Send Request';
+
+    document.getElementById('response-area').innerHTML = `
+      <div class="response-panel">
+        <div class="response-header">
+          <span class="${data.success ? 'status-ok' : 'status-err'}">
+            ${data.success ? '✅' : '❌'} HTTP ${httpStatus}
+          </span>
+          <span class="latency">${ms}ms</span>
+        </div>
+        <pre class="response-body">${syntaxHL(JSON.stringify(data, null, 2))}</pre>
+      </div>`;
+
+    if (p.onSuccess && data.success) p.onSuccess(data);
+    toast(data.success ? `✅ ${httpStatus} — ${p.title}` : `❌ ${data.message}`, data.success ? 'ok' : 'err');
+  }
+
+  // ── JSON syntax highlighter ───────────────────────────────────
+  function syntaxHL(json) {
+    return json
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(\.\d+)?([eE][+-]?\d+)?)/g, m => {
+        if (/^"/.test(m)) return /:$/.test(m) ? `<span class="json-key">${m}</span>` : `<span class="json-str">${m}</span>`;
+        if (/true|false/.test(m)) return `<span class="json-bool">${m}</span>`;
+        if (/null/.test(m)) return `<span class="json-null">${m}</span>`;
+        return `<span class="json-num">${m}</span>`;
+      });
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────
+  let toastTimer;
+  function toast(msg, type = 'ok') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = `toast ${type} show`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
+  showPanel('signup');
+
+  // Auto-populate signup email
+  setTimeout(() => {
+    const el = document.getElementById('su_email');
+    if (el) el.value = `user_${Date.now()}@solidus.io`;
+  }, 100);
+</script>
+</body>
+</html>

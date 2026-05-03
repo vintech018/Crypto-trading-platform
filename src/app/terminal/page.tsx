@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { getBinanceManager, destroyAllSockets } from '@/services/binanceSocket'
 import { useMarketStore } from '@/state/marketStore'
+import { getBinanceManager, destroyAllSockets } from '@/services/binanceSocket'
 import { GlobalTicker } from '@/components/terminal/Ticker'
 import { LeftNav } from '@/components/terminal/LeftNav'
 import { ChartPanel } from '@/components/terminal/ChartPanel'
@@ -15,6 +15,8 @@ import { AIInsights } from '@/components/terminal/AIInsights'
 import { WhaleTracker } from '@/components/terminal/WhaleTracker'
 import { OnChainPanel } from '@/components/terminal/OnChainPanel'
 import { AlertsPanel } from '@/components/terminal/AlertsPanel'
+import { OpenOrders } from '@/components/terminal/OpenOrders'
+import { TradeHistory } from '@/components/terminal/TradeHistory'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
@@ -27,6 +29,8 @@ const PANEL_COMPONENTS: Record<string, React.FC> = {
     whale: WhaleTracker,
     onchain: OnChainPanel,
     alerts: AlertsPanel,
+    orders: OpenOrders,
+    history: TradeHistory,
 }
 
 function RightSidebar() {
@@ -67,6 +71,7 @@ function CenterArea() {
 export default function TerminalPage() {
     const setActivePanel = useMarketStore(s => s.setActivePanel)
     const activeSymbol = useMarketStore(s => s.activeSymbol)
+    const initFromBackend = useMarketStore(s => s.initFromBackend)
     const initialized = useRef(false)
 
     // Loading overlay state
@@ -79,7 +84,7 @@ export default function TerminalPage() {
     const [loadingDone, setLoadingDone] = useState(false)
     const [loadMsg, setLoadMsg] = useState(0)
 
-    // Boot WebSocket connections
+    // Boot WebSocket connections + load backend portfolio
     useEffect(() => {
         if (initialized.current) return
         initialized.current = true
@@ -87,7 +92,9 @@ export default function TerminalPage() {
         mgr.connectTicker()
         mgr.connectDepth(activeSymbol)
         mgr.connectTrades(activeSymbol)
-    }, [])
+        // Load wallet & holdings from backend (no-op if not logged in)
+        initFromBackend()
+    }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
     // Loading sequence — cycle messages then fade out after 1.5s
     useEffect(() => {
@@ -113,6 +120,8 @@ export default function TerminalPage() {
                 case 'a': setActivePanel('ai'); break
                 case 'w': setActivePanel('whale'); break
                 case 'n': setActivePanel('alerts'); break
+                case 'r': setActivePanel('orders'); break
+                case 'h': setActivePanel('history'); break
                 case 'f':
                     document.fullscreenElement
                         ? document.exitFullscreen()
@@ -127,7 +136,8 @@ export default function TerminalPage() {
     return (
         <>
             {/* Terminal-specific styles */}
-            <style>{`
+            <style dangerouslySetInnerHTML={{
+                __html: `
         html, body { overflow: hidden; }
         .scrollbar-none::-webkit-scrollbar { display: none; }
         .scrollbar-none { scrollbar-width: none; }
@@ -177,7 +187,7 @@ export default function TerminalPage() {
           visibility: hidden;
           pointer-events: none;
         }
-      `}</style>
+      ` }} />
 
             {/* Loading overlay */}
             <div className={`terminal-loading fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center gap-6 ${loadingDone ? 'done' : ''}`}>
