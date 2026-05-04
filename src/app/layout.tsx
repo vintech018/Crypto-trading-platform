@@ -20,7 +20,10 @@ export const metadata: Metadata = {
     title: "Solidus — AI Crypto Trading Simulator",
     description: "Practice crypto trading risk-free with $50,000 virtual capital and AI-powered chart analysis.",
     type: "website",
-  }
+  },
+  icons: {
+    icon: '/icon.svg',
+  },
 };
 
 export default function RootLayout({

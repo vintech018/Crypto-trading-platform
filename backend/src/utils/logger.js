@@ -84,3 +84,54 @@ export function httpLogger(req, res, next) {
   next();
 }
 
+// ─── Structured Trade / Order Event Logging ─────────────────
+// Named exports for use in new middleware. Never logs tokens or passwords.
+
+/**
+ * Log a trade execution event (BUY or SELL).
+ * Called AFTER the trade is committed — captures outcome only.
+ *
+ * @param {"BUY"|"SELL"} type
+ * @param {Object} params  — { userId, coin, quantity, price, totalValue, tradeId? }
+ */
+export function logTradeExecution(type, { userId, coin, quantity, price, totalValue, tradeId } = {}) {
+  log("info", `[trade] ${type} executed`, {
+    tradeId: tradeId ?? null,
+    userId,
+    coin,
+    quantity,
+    price,
+    totalValue,
+  });
+}
+
+/**
+ * Log an order placement event.
+ *
+ * @param {Object} params  — { userId, coin, quantity, price, type, orderId? }
+ */
+export function logOrderPlacement({ userId, coin, quantity, price, type, orderId } = {}) {
+  log("info", "[order] limit order placed", {
+    orderId: orderId ?? null,
+    userId,
+    coin,
+    quantity,
+    price,
+    type,
+  });
+}
+
+/**
+ * Log a trade or order failure.
+ * Sanitises the error — never propagates stack traces to external log sinks.
+ *
+ * @param {string}       context   — "trade" | "order" | "auth" etc.
+ * @param {Error|string} err
+ * @param {Object}       [meta]    — additional safe context (no tokens)
+ */
+export function logFailure(context, err, meta = {}) {
+  log("error", `[${context}] operation failed`, {
+    error: err instanceof Error ? err.message : String(err),
+    ...meta,
+  });
+}

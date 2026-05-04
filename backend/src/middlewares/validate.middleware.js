@@ -77,6 +77,66 @@ export function validateDeposit(req, _res, next) {
   next();
 }
 
+// ─── Order Validators ─────────────────────────────────────────
+// Applied to: POST /api/orders  (limit order placement)
+// Mirrors validateTrade — same coin/quantity/price rules + type check.
+
+export function validateOrder(req, _res, next) {
+  const { coin, quantity, price, type } = req.body;
+  const errors = [];
+
+  if (!coin || !SUPPORTED_COINS.includes(coin.toUpperCase()))
+    errors.push(`coin must be one of: ${SUPPORTED_COINS.join(", ")}.`);
+
+  const qty = parseFloat(quantity);
+  if (isNaN(qty) || qty <= 0)
+    errors.push("quantity must be a positive number.");
+
+  const prc = parseFloat(price);
+  if (isNaN(prc) || prc <= 0)
+    errors.push("price must be a positive number.");
+
+  if (!type || !["BUY", "SELL"].includes(String(type).toUpperCase()))
+    errors.push("type must be BUY or SELL.");
+
+  if (errors.length) return next(new AppError(errors.join(" "), 400));
+
+  // Normalise
+  req.body.coin     = coin.toUpperCase();
+  req.body.quantity = qty;
+  req.body.price    = prc;
+  req.body.type     = String(type).toUpperCase();
+  next();
+}
+
+// ─── Close Position Validator ─────────────────────────────────
+// Applied to: POST /api/trade/close
+// Validates coin and optional quantity (full-close if omitted).
+
+export function validateCloseTrade(req, _res, next) {
+  const { coin, quantity } = req.body;
+  const errors = [];
+
+  if (!coin || !SUPPORTED_COINS.includes(coin.toUpperCase()))
+    errors.push(`coin must be one of: ${SUPPORTED_COINS.join(", ")}.`);
+
+  // quantity is optional — if provided it must be a positive number
+  if (quantity !== undefined && quantity !== null) {
+    const qty = parseFloat(quantity);
+    if (isNaN(qty) || qty <= 0)
+      errors.push("quantity must be a positive number (omit to close the full position).");
+    else
+      req.body.quantity = qty;
+  } else {
+    req.body.quantity = null; // explicit null = full position close
+  }
+
+  if (errors.length) return next(new AppError(errors.join(" "), 400));
+
+  req.body.coin = coin.toUpperCase();
+  next();
+}
+
 // ─── Report Validators ───────────────────────────────────────
 
 export function validateReportQuery(req, _res, next) {

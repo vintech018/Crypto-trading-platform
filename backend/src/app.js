@@ -127,7 +127,7 @@ app.use(cors({
   credentials: true,
   // Explicitly list allowed headers/methods — tighter than the wildcard default
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key"],
 }));
 
 // ─── 4. Body Parsing ──────────────────────────────────────────

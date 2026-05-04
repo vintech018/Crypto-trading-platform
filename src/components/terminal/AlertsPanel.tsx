@@ -35,7 +35,7 @@ export function AlertsPanel() {
     // Load backend alerts
     useEffect(() => {
         api.get('/api/alerts')
-            .then(res => setBackendAlerts(res.data?.alerts ?? []))
+            .then((res: any) => setBackendAlerts(res.data?.alerts ?? []))
             .catch(() => { })
     }, [tradeSyncId])
 

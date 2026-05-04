@@ -16,8 +16,10 @@ export default function Dashboard() {
     const [buyingPower, setBuyingPower] = useState<number>(0)
     const [userName, setUserName] = useState<string>('')
     const [loading, setLoading] = useState(true)
+    const [mounted, setMounted] = useState(false)
 
     useEffect(() => {
+        setMounted(true)
         if (!auth.isLoggedIn()) {
             setLoading(false)
             return
@@ -69,7 +71,7 @@ export default function Dashboard() {
                 <ArrowLeft size={16} /> Back to home
             </Link>
 
-            {auth.isLoggedIn() && (
+            {mounted && auth.isLoggedIn() && (
                 <button
                     onClick={handleLogout}
                     className="absolute top-8 right-8 text-white/30 hover:text-white flex items-center gap-2 transition-colors z-20 text-sm"

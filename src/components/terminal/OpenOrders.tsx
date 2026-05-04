@@ -63,7 +63,21 @@ export function OpenOrders() {
     const [totalPnL, setTotalPnL] = useState<number>(0)
     const [loading, setLoading] = useState(false)
     const [view, setView] = useState<'positions' | 'summary'>('positions')
+    const [closingCoin, setClosingCoin] = useState<string | null>(null)
     const tradeSyncId = useMarketStore(s => s.tradeSyncId)
+    const triggerTradeSync = useMarketStore(s => s.triggerTradeSync)
+
+    const handleClosePosition = async (coin: string) => {
+        setClosingCoin(coin)
+        try {
+            await api.post('/api/trade/close', { coin })
+            triggerTradeSync()
+        } catch (e) {
+            console.error("Failed to close position", e)
+        } finally {
+            setClosingCoin(null)
+        }
+    }
 
     const load = useCallback(async () => {
         setLoading(true)
@@ -166,12 +180,21 @@ export function OpenOrders() {
                                         LONG
                                     </span>
                                 </div>
-                                <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${
-                                    isProfitable ? 'text-emerald-400' : 'text-red-400'
-                                }`}>
-                                    <PnLIcon size={10} />
-                                    {fmtPct(h.pnlPercent)}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className={`flex items-center gap-0.5 text-[10px] font-semibold ${
+                                        isProfitable ? 'text-emerald-400' : 'text-red-400'
+                                    }`}>
+                                        <PnLIcon size={10} />
+                                        {fmtPct(h.pnlPercent)}
+                                    </span>
+                                    <button
+                                        onClick={() => handleClosePosition(h.coin)}
+                                        disabled={closingCoin === h.coin}
+                                        className="text-[9px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                                    >
+                                        {closingCoin === h.coin ? '...' : 'EXIT'}
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Row 2: details */}

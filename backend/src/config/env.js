@@ -86,4 +86,14 @@ export const env = Object.freeze({
 
   // Logging
   LOG_LEVEL: process.env.LOG_LEVEL || "info",
+
+  // ─── Frontend / API URL ─────────────────────────────────────
+  // Used by any server-side code that needs the canonical backend URL.
+  // NEXT_PUBLIC_BACKEND_URL is the single source of truth (set in frontend .env).
+  // Fallback chain: NEXT_PUBLIC_BACKEND_URL → BACKEND_URL → localhost default.
+  // DO NOT remove either env var — both may be set in different environments.
+  BACKEND_URL:
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.BACKEND_URL ||
+    "http://localhost:5050",
 });

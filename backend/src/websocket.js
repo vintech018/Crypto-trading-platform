@@ -59,3 +59,28 @@ export function emitTradeUpdate(userId, payload) {
   if (!io) return;
   io.to(userId.toString()).emit("trade:update", payload);
 }
+
+/**
+ * Emit position-closed events to a specific user's room.
+ *
+ * Fires three separate events so each UI panel can react independently:
+ *   "positionClosed"       — Open Positions panel removes the row
+ *   "portfolioUpdated"     — Portfolio/wallet panels refresh balance
+ *   "tradeHistoryUpdated"  — Trade History panel appends the SELL record
+ *
+ * @param {string} userId
+ * @param {object} payload
+ * @param {string}  payload.coin
+ * @param {number}  payload.quantity
+ * @param {number}  payload.exitPrice
+ * @param {number}  payload.realisedPnL
+ * @param {object}  payload.trade        — full trade document
+ * @param {object}  payload.portfolio    — fresh portfolio snapshot
+ */
+export function emitPositionClosed(userId, payload) {
+  if (!io) return;
+  const room = userId.toString();
+  io.to(room).emit("positionClosed",      payload);
+  io.to(room).emit("portfolioUpdated",    { portfolio: payload.portfolio });
+  io.to(room).emit("tradeHistoryUpdated", { trade: payload.trade });
+}

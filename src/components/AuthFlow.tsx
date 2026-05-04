@@ -512,7 +512,7 @@ function OAuthModal({ provider, onClose, onSuccess }: { provider: string, onClos
                             <div><span className="c-comment">// Real code — open OAuth popup:</span></div>
                             <div><span className="c-key">window</span>.open(</div>
                             <div style={{ paddingLeft: '16px' }}><span className="c-str">`https://accounts.google.com/o/oauth2/auth`</span></div>
-                            <div style={{ paddingLeft: '16px' }}><span className="c-key">+</span> <span className="c-str">`?client_id=<span className="c-warn">{GOOGLE_CLIENT_ID}</span>`</span></div>
+                            <div style={{ paddingLeft: '16px' }}><span className="c-key">+</span> <span className="c-str">`?client_id=<span className="c-warn">{'{GOOGLE_CLIENT_ID}'}</span>`</span></div>
                             <div style={{ paddingLeft: '16px' }}><span className="c-key">+</span> <span className="c-str">`&redirect_uri=${'${REDIRECT_URI}'}`</span></div>
                             <div style={{ paddingLeft: '16px' }}><span className="c-key">+</span> <span className="c-str">`&scope=email profile&response_type=code`</span></div>
                             <div>)</div>
