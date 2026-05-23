@@ -49,7 +49,7 @@ export function AIShowcase() {
                             transition={{ duration: 0.6, delay: 0.4 }}
                             className="text-white/60 text-lg leading-relaxed mb-8"
                         >
-                            Don't trade blindly. Upload your technical charts and let our specialized AI engine identify emerging trends, precise support/resistance zones, and historical patterns instantly.
+                            Don&apos;t trade blindly. Upload your technical charts and let our specialized AI engine identify emerging trends, precise support/resistance zones, and historical patterns instantly.
                         </motion.p>
 
                         <motion.ul

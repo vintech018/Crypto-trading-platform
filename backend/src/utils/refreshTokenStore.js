@@ -20,24 +20,10 @@
  *   refreshTokenStore.revoke(userId);              // on logout
  */
 
-// ─── Internal store ────────────────────────────────────────────
-// Map<userId, { token, expiresAtMs }>
-const store = new Map();
+import { redisClient } from "../config/redis.js";
+import { env } from "../config/env.js";
 
-// ─── Prune expired entries ─────────────────────────────────────
-// Runs every 30 minutes.  Keeps memory flat regardless of traffic.
-const PRUNE_INTERVAL_MS = 30 * 60 * 1000;
-
-function pruneExpired() {
-  const now = Date.now();
-  for (const [userId, entry] of store) {
-    if (entry.expiresAtMs <= now) store.delete(userId);
-  }
-}
-
-if (process.env.NODE_ENV !== "test") {
-  setInterval(pruneExpired, PRUNE_INTERVAL_MS).unref();
-}
+const memoryStore = new Map();
 
 // ─── Public API ────────────────────────────────────────────────
 export const refreshTokenStore = {
@@ -49,11 +35,17 @@ export const refreshTokenStore = {
    * @param {string}        token  — raw refresh JWT string
    * @param {number}        exp    — JWT `exp` claim (seconds since epoch)
    */
-  save(userId, token, exp) {
-    store.set(String(userId), {
-      token,
-      expiresAtMs: exp * 1000, // convert JWT exp (seconds) → ms
-    });
+  async save(userId, token, exp) {
+    const key = `rt:${userId}`;
+    if (!env.IS_PROD) {
+      memoryStore.set(key, token);
+      return;
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const ttl = exp - now;
+    if (ttl > 0) {
+      await redisClient.setex(key, ttl, token);
+    }
   },
 
   /**
@@ -63,11 +55,16 @@ export const refreshTokenStore = {
    * @param {string|number} userId
    * @param {string}        token
    */
-  isValid(userId, token) {
-    const entry = store.get(String(userId));
-    if (!entry)                          return false;
-    if (entry.expiresAtMs <= Date.now()) { store.delete(String(userId)); return false; }
-    return entry.token === token;
+  async isValid(userId, token) {
+    const key = `rt:${userId}`;
+    if (!env.IS_PROD) {
+      const storedToken = memoryStore.get(key);
+      if (!storedToken) return false;
+      return storedToken === token;
+    }
+    const storedToken = await redisClient.get(key);
+    if (!storedToken) return false;
+    return storedToken === token;
   },
 
   /**
@@ -75,10 +72,18 @@ export const refreshTokenStore = {
    *
    * @param {string|number} userId
    */
-  revoke(userId) {
-    store.delete(String(userId));
+  async revoke(userId) {
+    const key = `rt:${userId}`;
+    if (!env.IS_PROD) {
+      memoryStore.delete(key);
+      return;
+    }
+    await redisClient.del(key);
   },
 
   /** Exposed for testing only */
-  _size() { return store.size; },
+  async _size() {
+    const keys = await redisClient.keys("rt:*");
+    return keys.length;
+  },
 };

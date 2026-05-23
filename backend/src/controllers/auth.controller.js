@@ -8,6 +8,7 @@ import { sendSuccess }        from "../utils/helpers.js";
 import { blacklist }          from "../utils/tokenBlacklist.js";
 import { refreshTokenStore }  from "../utils/refreshTokenStore.js";
 import { env }                from "../config/env.js";
+import { emitAuditEvent }     from "../analytics/services/analyticsEmitter.js";
 
 // ─── Internal helpers ──────────────────────────────────────────
 
@@ -43,9 +44,6 @@ function signRefreshToken(user) {
 function issueTokenPair(user) {
   const accessToken  = signAccessToken(user);
   const refreshToken = signRefreshToken(user);
-  const { exp }      = jwt.decode(refreshToken);
-  const userId       = user._id ? user._id.toString() : user.id;
-  refreshTokenStore.save(userId, refreshToken, exp);
   return { accessToken, refreshToken };
 }
 
@@ -53,7 +51,7 @@ function issueTokenPair(user) {
 
 const COOKIE_OPTS = {
   httpOnly: true,
-  sameSite: "lax",
+  sameSite: env.IS_PROD ? "none" : "lax",
   secure:   env.IS_PROD,
   path:     "/",
 };
@@ -70,7 +68,7 @@ function setCookies(res, accessToken, refreshToken) {
   res.cookie("solidus_refresh", refreshToken, { ...COOKIE_OPTS, maxAge: 7 * 24 * 60 * 60 * 1000 });
   // Non-httpOnly — Next.js middleware reads this to guard routes
   res.cookie("solidus_authed", "true", {
-    sameSite: "lax",
+    sameSite: env.IS_PROD ? "none" : "lax",
     secure:   env.IS_PROD,
     path:     "/",
     maxAge:   7 * 24 * 60 * 60 * 1000,
@@ -81,7 +79,7 @@ function clearCookies(res) {
   const clear = { ...COOKIE_OPTS, maxAge: 0 };
   res.cookie("solidus_access",  "", clear);
   res.cookie("solidus_refresh", "", clear);
-  res.cookie("solidus_authed",  "", { sameSite: "lax", secure: env.IS_PROD, path: "/", maxAge: 0 });
+  res.cookie("solidus_authed",  "", { sameSite: env.IS_PROD ? "none" : "lax", secure: env.IS_PROD, path: "/", maxAge: 0 });
 }
 
 // ─── Email / Password routes ───────────────────────────────────
@@ -109,6 +107,13 @@ export async function login(req, res, next) {
       userAgent: req.headers["user-agent"] || "unknown",
     });
     setCookies(res, result.accessToken, result.refreshToken);
+
+    // Fire-and-forget audit log
+    emitAuditEvent(result.user.id, "LOGIN", { 
+      method: "email", 
+      ip: req.ip || req.connection?.remoteAddress || "unknown" 
+    });
+
     return sendSuccess(res, 200, "Login successful.", result);
   } catch (err) {
     next(err);
@@ -124,7 +129,7 @@ export async function login(req, res, next) {
  * req.user is the Mongoose user document attached by the GoogleStrategy.
  * We issue a JWT pair, set httpOnly cookies, and redirect to the dashboard.
  */
-export function googleCallback(req, res) {
+export async function googleCallback(req, res) {
   try {
     // req.user is set by passport on success.
     // On soft rejection (done(null, false, info)), passport.authenticate with
@@ -132,8 +137,15 @@ export function googleCallback(req, res) {
     if (!req.user) {
       return res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
     }
-    const { accessToken, refreshToken } = issueTokenPair(req.user);
+    const { accessToken, refreshToken } = await issueTokenPair(req.user);
+    const userId = req.user._id ? req.user._id.toString() : req.user.id;
+    const { exp } = jwt.decode(refreshToken);
+    await refreshTokenStore.save(userId, refreshToken, exp);
     setCookies(res, accessToken, refreshToken);
+    
+    // Fire-and-forget audit log
+    emitAuditEvent(userId, "LOGIN", { method: "google" });
+
     // Redirect to frontend dashboard
     return res.redirect(`${env.FRONTEND_URL}/dashboard`);
   } catch (err) {
@@ -182,7 +194,7 @@ export async function refresh(req, res, next) {
     if (!token) {
       return next(Object.assign(new Error("Refresh token is required."), { status: 400 }));
     }
-    const result = authService.refreshAccessToken(token);
+    const result = await authService.refreshAccessToken(token);
     // Rotate access cookie
     res.cookie("solidus_access", result.accessToken, { ...COOKIE_OPTS, maxAge: 15 * 60 * 1000 });
     return sendSuccess(res, 200, "Access token refreshed.", result);
@@ -194,10 +206,17 @@ export async function refresh(req, res, next) {
 /**
  * POST /api/auth/logout   (protected)
  */
-export function logout(req, res) {
-  // Blacklist access token + revoke refresh token
-  if (req.token) blacklist.add(req.token, req.user.exp);
-  if (req.user?.id) refreshTokenStore.revoke(req.user.id);
-  clearCookies(res);
-  return sendSuccess(res, 200, "Logged out successfully.");
+export async function logout(req, res, next) {
+  try {
+    // Blacklist access token + revoke refresh token
+    if (req.token) await blacklist.add(req.token, req.user.exp);
+    if (req.user?.id) {
+      await refreshTokenStore.revoke(req.user.id);
+      emitAuditEvent(req.user.id, "LOGOUT", { reason: "user_initiated" });
+    }
+    clearCookies(res);
+    return sendSuccess(res, 200, "Logged out successfully.");
+  } catch (err) {
+    next(err);
+  }
 }

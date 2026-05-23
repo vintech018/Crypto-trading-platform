@@ -3,7 +3,7 @@
 import React, { useState, Children, ReactNode, HTMLAttributes } from 'react';
 import { motion, AnimatePresence, Variants } from 'framer-motion';
 
-interface StepperProps extends HTMLAttributes<HTMLDivElement> {
+type StepperProps = HTMLAttributes<HTMLDivElement> & {
     children: ReactNode;
     initialStep?: number;
     onStepChange?: (step: number) => void;
@@ -202,7 +202,7 @@ function StepConnector({ isCompleted }: { isCompleted: boolean }) {
     );
 }
 
-interface CheckIconProps extends React.SVGProps<SVGSVGElement> { }
+type CheckIconProps = React.SVGProps<SVGSVGElement>;
 
 function CheckIcon(props: CheckIconProps) {
     return (

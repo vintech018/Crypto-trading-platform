@@ -16,7 +16,6 @@
 import express    from "express";
 import helmet     from "helmet";
 import cors       from "cors";
-import xss        from "xss-clean";
 import cookieParser from "cookie-parser";
 import path       from "path";
 import { fileURLToPath } from "url";
@@ -35,6 +34,12 @@ import orderRoutes     from "./routes/order.routes.js";
 import newsRoutes      from "./routes/news.routes.js";
 import intelligenceRoutes from "./routes/intelligence.routes.js";
 import alertRoutes     from "./routes/alert.routes.js";
+import uploadRoutes    from "./routes/upload.routes.js";
+import systemRoutes    from "./routes/system.routes.js";
+// ─── Analytics (PostgreSQL sidecar — isolated secondary layer) ────────────
+// This import adds the NEW /api/analytics/* routes only.
+// It does NOT modify any existing route, middleware, or business logic.
+import analyticsRoutes from "./analytics/routes/analytics.routes.js";
 
 import { errorHandler, notFoundHandler } from "./middlewares/error.middleware.js";
 import { authenticate }                   from "./middlewares/auth.middleware.js";
@@ -50,6 +55,9 @@ const __dirname  = path.dirname(__filename);
 const { IS_PROD, CORS_ORIGIN } = env;
 
 const app = express();
+
+// Trust the first proxy (e.g. Railway/Render load balancer) for rate limiting to work
+app.set("trust proxy", 1);
 
 // ─── 1. Helmet — HTTP Security Headers ───────────────────────
 // Goes FIRST so every response (including errors) gets headers.
@@ -144,12 +152,9 @@ app.use(cookieParser());
 // because we use JWTs, not server-side sessions.
 app.use(passport.initialize());
 
-// ─── 5. XSS Sanitization ──────────────────────────────────────
-// Must run AFTER body parsing so req.body is already populated.
-// Strips <script> tags and HTML event attributes from:
-//   req.body, req.query, req.params
-// Protects stored-XSS vectors (e.g. a user naming themselves "<script>alert(1)</script>").
-app.use(xss());
+// ─── 5. Input Validation Layer (Replaced XSS Clean) ───────────
+// We removed xss-clean as it is deprecated. Input sanitization is now
+// handled explicitly via centralized validation logic and React's native escaping.
 
 // ─── 6. HTTP Logger ────────────────────────────────────────────
 // Logs: [reqId] METHOD /url STATUS - Xms  (fires on res.finish, so status is real)
@@ -160,16 +165,37 @@ app.use(httpLogger);
 app.use("/static", express.static(path.join(__dirname, "../public")));
 
 // ─── Health Check ─────────────────────────────────────────────
-app.get("/", (_req, res) => {
-  res.json({
-    status:  "ok",
-    service: "SOLIDUS Crypto Trading API",
-    version: "1.0.0",
-    timestamp: new Date().toISOString(),
-  });
-});
+app.get("/health", (_req, res) => res.json({ status: "ok", type: "process" }));
 
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.get("/ready", async (_req, res) => {
+  try {
+    const mongoose = (await import("mongoose")).default;
+    const { redisClient } = await import("./config/redis.js");
+    const { prisma } = await import("./postgres/client.js");
+
+    const mongoState = mongoose.connection.readyState;
+    const isMongoReady = mongoState === 1;
+
+    let isRedisReady = false;
+    try {
+      isRedisReady = (await redisClient.ping()) === "PONG";
+    } catch (e) {}
+
+    let isPostgresReady = false;
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      isPostgresReady = true;
+    } catch (e) {}
+
+    if (isMongoReady && isRedisReady && isPostgresReady) {
+      res.json({ status: "ok", dependencies: { mongo: true, redis: true, postgres: true } });
+    } else {
+      res.status(503).json({ status: "degraded", dependencies: { mongo: isMongoReady, redis: isRedisReady, postgres: isPostgresReady } });
+    }
+  } catch (err) {
+    res.status(503).json({ status: "error" });
+  }
+});
 
 // ─── 8. API Routes ────────────────────────────────────────────
 // Rate limiting lives inside auth.routes.js — not globally here.
@@ -182,6 +208,12 @@ app.use("/api/orders",      orderRoutes);
 app.use("/api/news",        newsRoutes);
 app.use("/api/intelligence", intelligenceRoutes);
 app.use("/api/alerts",      alertRoutes);
+app.use("/api/uploads",     uploadRoutes);
+app.use("/api/system",      systemRoutes);
+// ─── Analytics sidecar (PostgreSQL — SECONDARY, isolated, non-blocking) ───
+// NEW endpoints only: GET /api/analytics/pnl|monthly|top-assets
+// MongoDB-backed core routes above are completely unmodified.
+app.use("/api/analytics",   analyticsRoutes);
 
 app.get("/api/pnl", authenticate, getPnl);
 
@@ -318,6 +350,8 @@ app.get(["/api/transactions", "/api/orders"], authenticate, async (req, res) => 
  *   loginHistory — last 5 login events (for observability)
  */
 app.get("/api/session", authenticate, async (req, res) => {
+  console.log("\n[Debug] /api/session route hit");
+  console.log("User ID:", req.user.id);
   try {
     const uid = req.user.id;
 
@@ -327,6 +361,8 @@ app.get("/api/session", authenticate, async (req, res) => {
       Trade.countDocuments({ userId: uid }),
       Holding.countDocuments({ userId: uid }),
     ]);
+
+    console.log("[Debug] /api/session data fetched:", !!user, !!wallet);
 
     if (!user) return res.status(404).json({ success: false, message: "User not found." });
 

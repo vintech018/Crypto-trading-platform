@@ -2,98 +2,160 @@
  * env.js — Centralized environment variable validation
  *
  * This module is imported FIRST in server.js (before app, before routes).
- * If any required variable is missing or malformed, the process exits
- * immediately with a clear error message — fail fast, not silently.
- *
- * All other modules should import from this file instead of
- * reading process.env directly.
+ * It enforces a strict FAIL-FAST policy: if any required variable is missing
+ * or malformed, the process logs a clean error and exits immediately.
  */
 
-// ─── Required variables ────────────────────────────────────────
-const REQUIRED = [
-  "MONGO_URI",
-  "GOOGLE_CLIENT_ID",
-  "GOOGLE_CLIENT_SECRET",
-  "GOOGLE_CALLBACK_URL",
+// We don't import logger.js here because logger might depend on env.js.
+// We'll use console to format a checklist before exiting.
+
+const envConfig = process.env;
+
+// Helper to validate URLs
+function isValidUrl(string) {
+  try {
+    new URL(string);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Check if we are in test mode
+const isTestMode = envConfig.NODE_ENV === "test";
+const isDevMode = envConfig.NODE_ENV === "development";
+
+// Define strict rules grouped logically
+const REQUIRED_GROUPS = [
+  {
+    group: "Core App",
+    vars: [
+      { key: "PORT", validate: (v) => !isNaN(parseInt(v, 10)) && parseInt(v, 10) > 0 },
+      { key: "NODE_ENV", validate: (v) => ["development", "production", "test"].includes(v) },
+      { key: "FRONTEND_URL", validate: (v) => isValidUrl(v) }
+    ]
+  },
+  {
+    group: "MongoDB",
+    vars: [
+      { key: "MONGO_URI", validate: (v) => v.startsWith("mongodb") }
+    ]
+  },
+  {
+    group: "PostgreSQL",
+    vars: [
+      { key: "DATABASE_URL", validate: (v) => v.startsWith("postgres") }
+    ]
+  },
+  {
+    group: "Redis",
+    vars: [
+      { key: "REDIS_URL", validate: (v) => v.startsWith("redis") }
+    ]
+  },
+  {
+    group: "JWT & Auth",
+    vars: [
+      { key: "JWT_ACCESS_SECRET", validate: (v) => v.length >= 32 },
+      { key: "JWT_REFRESH_SECRET", validate: (v) => v.length >= 32 }
+    ]
+  },
+  {
+    group: "Google OAuth",
+    vars: [
+      { key: "GOOGLE_CLIENT_ID", validate: (v) => v.length > 0 },
+      { key: "GOOGLE_CLIENT_SECRET", validate: (v) => v.length > 0 },
+      { key: "GOOGLE_CALLBACK_URL", validate: (v) => isValidUrl(v) || v.startsWith("/") }
+    ]
+  },
+  {
+    group: "Cloudinary",
+    vars: [
+      { key: "CLOUDINARY_CLOUD_NAME", validate: (v) => v.length > 0 },
+      { key: "CLOUDINARY_API_KEY", validate: (v) => v.length > 0 },
+      { key: "CLOUDINARY_API_SECRET", validate: (v) => v.length > 0 }
+    ]
+  },
+  {
+    group: "Stripe",
+    vars: [
+      { key: "STRIPE_SECRET_KEY", validate: (v) => isTestMode || v.startsWith("sk_") || v.startsWith("test") },
+      { key: "STRIPE_WEBHOOK_SECRET", validate: (v) => isTestMode || v.startsWith("whsec_") || v.startsWith("test") }
+    ]
+  }
 ];
 
-// ─── Validation ───────────────────────────────────────────────
-const missing = REQUIRED.filter((key) => !process.env[key]);
+let hasErrors = false;
+console.log("\n[Startup] Validating System Environment Configuration...\n");
 
-if (missing.length > 0) {
-  console.error("\n❌  STARTUP FAILED — Missing required environment variables:");
-  missing.forEach((key) => console.error(`     • ${key}`));
-  console.error("\n   Add them to your .env file and restart.\n");
+for (const groupDef of REQUIRED_GROUPS) {
+  let groupValid = true;
+  for (const { key, validate } of groupDef.vars) {
+    const value = envConfig[key] ? envConfig[key].trim() : "";
+    
+    if (!value) {
+      console.error(`  ✗ [${groupDef.group}] Missing: ${key}`);
+      groupValid = false;
+      hasErrors = true;
+    } else if (validate && !validate(value)) {
+      console.error(`  ✗ [${groupDef.group}] Invalid format: ${key}`);
+      groupValid = false;
+      hasErrors = true;
+    }
+  }
+
+  if (groupValid) {
+    console.log(`  ✓ [${groupDef.group}] Config Loaded`);
+  }
+}
+
+if (hasErrors) {
+  console.error("\n❌ STARTUP FAILED — Critical infrastructure variables are missing or invalid.");
+  console.error("Please update your .env file and try again.\n");
   process.exit(1);
 }
 
-// ─── Specific validations ─────────────────────────────────────
-// At least one of JWT_ACCESS_SECRET or JWT_SECRET must be present
-const _accessSecret  = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
-const _refreshSecret = process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET;
+console.log("\n✅ All environment configurations validated successfully.\n");
 
-if (!_accessSecret) {
-  console.error("\n❌  STARTUP FAILED — JWT_ACCESS_SECRET (or JWT_SECRET) is required.");
-  console.error("   Add it to your .env file and restart.\n");
-  process.exit(1);
-}
-
-if (_accessSecret.length < 32) {
-  console.error("\n❌  STARTUP FAILED — JWT_ACCESS_SECRET must be at least 32 characters.");
-  console.error("   A short secret makes JWTs trivially brute-forceable.\n");
-  process.exit(1);
-}
-
-if (!_refreshSecret || _refreshSecret.length < 32) {
-  console.error("\n❌  STARTUP FAILED — JWT_REFRESH_SECRET must be at least 32 characters.");
-  console.error("   Add a strong JWT_REFRESH_SECRET to your .env file and restart.\n");
-  process.exit(1);
-}
-
-// ─── Typed, centralized env object ───────────────────────────
+// ─── Export typed env object ───────────────────────────
 export const env = Object.freeze({
-  NODE_ENV: process.env.NODE_ENV || "development",
-  PORT: parseInt(process.env.PORT, 10) || 5050,
-  IS_PROD: process.env.NODE_ENV === "production",
+  NODE_ENV: envConfig.NODE_ENV,
+  PORT: parseInt(envConfig.PORT, 10),
+  IS_PROD: envConfig.NODE_ENV === "production",
 
-  // Database — MongoDB Atlas
-  MONGO_URI: process.env.MONGO_URI,
+  // Core App
+  FRONTEND_URL: envConfig.FRONTEND_URL,
+  CORS_ORIGIN: envConfig.CORS_ORIGIN || envConfig.FRONTEND_URL,
+  LOG_LEVEL: envConfig.LOG_LEVEL || "info",
+  BACKEND_URL: envConfig.NEXT_PUBLIC_BACKEND_URL || envConfig.BACKEND_URL || `http://localhost:${envConfig.PORT}`,
 
-  // CORS — comma-separated list e.g. "http://localhost:3000,https://app.solidus.io"
-  CORS_ORIGIN: process.env.CORS_ORIGIN || "http://localhost:3000",
+  // Databases
+  MONGO_URI: envConfig.MONGO_URI,
+  DATABASE_URL: envConfig.DATABASE_URL,
+  REDIS_URL: envConfig.REDIS_URL,
 
-  // Auth — access token (short-lived, used on every protected request)
-  JWT_SECRET: _accessSecret,                                    // legacy compat alias
-  JWT_ACCESS_SECRET: _accessSecret,
-  JWT_ACCESS_EXPIRES_IN: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
+  // Auth & JWT
+  JWT_ACCESS_SECRET: envConfig.JWT_ACCESS_SECRET,
+  JWT_REFRESH_SECRET: envConfig.JWT_REFRESH_SECRET,
+  JWT_ACCESS_EXPIRES_IN: envConfig.JWT_ACCESS_EXPIRES_IN || "15m",
+  JWT_REFRESH_EXPIRES_IN: envConfig.JWT_REFRESH_EXPIRES_IN || "7d",
+  BCRYPT_SALT_ROUNDS: parseInt(envConfig.BCRYPT_SALT_ROUNDS, 10) || 12,
 
-  // Auth — refresh token (long-lived, used ONLY to mint new access tokens)
-  JWT_REFRESH_SECRET: _refreshSecret,
-  JWT_REFRESH_EXPIRES_IN: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
-  BCRYPT_SALT_ROUNDS: parseInt(process.env.BCRYPT_SALT_ROUNDS, 10) || 12,
+  // Google OAuth
+  GOOGLE_CLIENT_ID: envConfig.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: envConfig.GOOGLE_CLIENT_SECRET,
+  GOOGLE_CALLBACK_URL: envConfig.GOOGLE_CALLBACK_URL,
 
-  // Google OAuth 2.0
-  GOOGLE_CLIENT_ID:     process.env.GOOGLE_CLIENT_ID,
-  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-  GOOGLE_CALLBACK_URL:  process.env.GOOGLE_CALLBACK_URL,
+  // Cloudinary
+  CLOUDINARY_CLOUD_NAME: envConfig.CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_API_KEY: envConfig.CLOUDINARY_API_KEY,
+  CLOUDINARY_API_SECRET: envConfig.CLOUDINARY_API_SECRET,
 
-  // Frontend URL (used for post-login redirect)
-  FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
+  // Stripe
+  STRIPE_SECRET_KEY: envConfig.STRIPE_SECRET_KEY,
+  STRIPE_WEBHOOK_SECRET: envConfig.STRIPE_WEBHOOK_SECRET,
 
-  // External APIs
-  COINGECKO_API_URL: process.env.COINGECKO_API_URL || "https://api.coingecko.com/api/v3",
-  GNEWS_API_KEY: process.env.GNEWS_API_KEY,
-
-  // Logging
-  LOG_LEVEL: process.env.LOG_LEVEL || "info",
-
-  // ─── Frontend / API URL ─────────────────────────────────────
-  // Used by any server-side code that needs the canonical backend URL.
-  // NEXT_PUBLIC_BACKEND_URL is the single source of truth (set in frontend .env).
-  // Fallback chain: NEXT_PUBLIC_BACKEND_URL → BACKEND_URL → localhost default.
-  // DO NOT remove either env var — both may be set in different environments.
-  BACKEND_URL:
-    process.env.NEXT_PUBLIC_BACKEND_URL ||
-    process.env.BACKEND_URL ||
-    "http://localhost:5050",
+  // Third-party API Defaults
+  COINGECKO_API_URL: envConfig.COINGECKO_API_URL || "https://api.coingecko.com/api/v3",
+  GNEWS_API_KEY: envConfig.GNEWS_API_KEY || "", // Optional
 });

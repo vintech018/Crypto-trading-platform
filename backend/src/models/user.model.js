@@ -39,6 +39,22 @@ const userSchema = new mongoose.Schema(
       type:    String,
       default: null,
     },
+    avatarPublicId: {
+      type: String,
+      default: null,
+    },
+
+    // ── KYC & Identity ──────────────────────────────────────────
+    kycDocuments: {
+      type: [{
+        documentType: { type: String, enum: ["PAN", "AADHAAR", "PASSPORT", "ID_CARD", "OTHER"], required: true },
+        url:          { type: String, required: true },
+        publicId:     { type: String, required: true },
+        uploadedAt:   { type: Date, default: Date.now },
+        status:       { type: String, enum: ["PENDING", "VERIFIED", "REJECTED"], default: "PENDING" },
+      }],
+      default: [],
+    },
 
     // ── Email / Password ──────────────────────────────────────────
     passwordHash: {

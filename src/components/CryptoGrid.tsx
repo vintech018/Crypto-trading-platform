@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 // Premium crisp crypto icons - vibrant brand colors restored for the chart graph
 const BASE_CRYPTO_DATA = [
@@ -155,9 +156,12 @@ export default function CryptoGrid() {
                                         }}
                                         transition={{ duration: 0.2 }}
                                     >
-                                        <img
+                                        <Image
                                             src={cell.coin.icon}
                                             alt={cell.coin.name}
+                                            width={128}
+                                            height={128}
+                                            unoptimized
                                             className="w-full h-full object-contain select-none drop-shadow-lg"
                                             draggable="false"
                                         />
@@ -195,7 +199,7 @@ export default function CryptoGrid() {
                                 {/* Card Header */}
                                 <div className="flex items-start gap-4 mb-2">
                                     <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 border border-white/10 p-2.5 bg-black/40 shadow-inner">
-                                        <img src={hoveredCoin.icon} alt={hoveredCoin.name} className="w-full h-full object-contain" />
+                                        <Image src={hoveredCoin.icon} alt={hoveredCoin.name} width={48} height={48} unoptimized className="w-full h-full object-contain" />
                                     </div>
                                     <div>
                                         <h2 className="text-[22px] font-bold text-white tracking-tight leading-none">{hoveredCoin.name}</h2>

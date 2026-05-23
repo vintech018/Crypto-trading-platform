@@ -130,6 +130,7 @@ interface MarketStore {
     isInitialized: boolean
     socket: Socket | null
     initFromBackend: () => Promise<void>
+    disconnectBackend: () => void
 }
 
 const INITIAL_EQUITY = 100000
@@ -220,7 +221,7 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
 
         try {
             await get().loadWalletFromBackend()
-        } catch (e) {
+        } catch {
             // Reset init flag so it can be retried
             set({ isInitialized: false })
             return
@@ -229,25 +230,50 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
         // Only run socket.io in the browser (dynamic import = no SSR crash)
         if (typeof window === 'undefined') return
 
-        const { io } = await import('socket.io-client')
-        const socket = io(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5050', {
-            withCredentials: true,
-        })
+        let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5050'
 
-        socket.on('trade:update', (data) => {
-            if (data.portfolio) {
-                set({
-                    walletBalance: data.portfolio.walletBalance,
-                    buyingPower: data.portfolio.walletBalance,
-                    equity: data.portfolio.walletBalance + (data.portfolio.totalHoldingsValue ?? 0),
-                    holdings: data.portfolio.holdings ?? [],
-                    totalPortfolioValue: data.portfolio.totalPortfolioValue ?? data.portfolio.walletBalance,
-                })
-            }
-            get().triggerTradeSync()
-        })
+        // Prevent Mixed Content SecurityError: if frontend is HTTPS, backend MUST use wss/https
+        if (typeof window !== 'undefined' && window.location.protocol === 'https:' && backendUrl.startsWith('http:')) {
+            backendUrl = backendUrl.replace('http:', 'https:')
+        }
 
-        set({ socket })
+        try {
+            const { io } = await import('socket.io-client')
+            const { auth } = await import('@/lib/apiClient')
+            const token = auth.getAccessToken()
+
+            const socket = io(backendUrl, {
+                withCredentials: true,
+                transports: ['websocket', 'polling'], // Fallback to polling to prevent immediate failure
+                reconnectionAttempts: 5,
+                auth: token ? { token } : undefined
+            })
+
+            socket.on('trade:update', (data) => {
+                if (data.portfolio) {
+                    set({
+                        walletBalance: data.portfolio.walletBalance,
+                        buyingPower: data.portfolio.walletBalance,
+                        equity: data.portfolio.walletBalance + (data.portfolio.totalHoldingsValue ?? 0),
+                        holdings: data.portfolio.holdings ?? [],
+                        totalPortfolioValue: data.portfolio.totalPortfolioValue ?? data.portfolio.walletBalance,
+                    })
+                }
+                get().triggerTradeSync()
+            })
+
+            set({ socket })
+        } catch (err) {
+            console.error('[Solidus] Socket.io initialization failed:', err)
+        }
+    },
+
+    disconnectBackend: () => {
+        const socket = get().socket
+        if (socket) {
+            socket.disconnect()
+            set({ socket: null, isInitialized: false })
+        }
     },
 
     // ── Optimistic portfolio update after trade ───────────────
@@ -351,6 +377,10 @@ export const useMarketStore = create<MarketStore>((set, get) => ({
                 totalUnrealizedPnl += pnl
             }
         })
+        // Update equity with unrealized PnL
+        if (totalUnrealizedPnl !== 0 || equity === 0) {
+            set({ equity: get().walletBalance + totalUnrealizedPnl })
+        }
     },
 
     alerts: [],

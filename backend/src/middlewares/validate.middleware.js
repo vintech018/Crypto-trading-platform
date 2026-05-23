@@ -1,157 +1,87 @@
-/**
- * validate.middleware.js — request body / query validator
- *
- * Uses native logic (no external validator dep) to keep
- * the bundle lean. Swap with zod/joi if the schema grows.
- */
-
+import { z } from "zod";
 import { AppError } from "../utils/helpers.js";
 import { SUPPORTED_COINS } from "../utils/constants.js";
 
-// ─── Auth Validators ──────────────────────────────────────────
-
-export function validateSignup(req, _res, next) {
-  const { name, email, password } = req.body;
-  const errors = [];
-
-  if (!name || name.trim().length < 2)
-    errors.push("Name must be at least 2 characters.");
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-    errors.push("A valid email is required.");
-
-  // ─── Password rules ────────────────────────────────────────
-  if (!password || password.length < 8)
-    errors.push("Password must be at least 8 characters.");
-  if (password && !/[A-Z]/.test(password))
-    errors.push("Password must contain at least one uppercase letter.");
-  if (password && !/[0-9]/.test(password))
-    errors.push("Password must contain at least one number.");
-  if (password && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password))
-    errors.push("Password must contain at least one special character.");
-
-  if (errors.length) return next(new AppError(errors.join(" "), 400));
-  next();
-}
-
-export function validateLogin(req, _res, next) {
-  const { email, password } = req.body;
-  if (!email || !password)
-    return next(new AppError("Email and password are required.", 400));
-  next();
-}
-
-// ─── Trade Validators ─────────────────────────────────────────
-
-export function validateTrade(req, _res, next) {
-  const { coin, quantity, price } = req.body;
-  const errors = [];
-
-  if (!coin || !SUPPORTED_COINS.includes(coin.toUpperCase()))
-    errors.push(`Coin must be one of: ${SUPPORTED_COINS.join(", ")}.`);
-
-  const qty = parseFloat(quantity);
-  if (isNaN(qty) || qty <= 0)
-    errors.push("Quantity must be a positive number.");
-
-  const prc = parseFloat(price);
-  if (isNaN(prc) || prc <= 0)
-    errors.push("Price must be a positive number.");
-
-  if (errors.length) return next(new AppError(errors.join(" "), 400));
-
-  // Normalise
-  req.body.coin     = coin.toUpperCase();
-  req.body.quantity = qty;
-  req.body.price    = prc;
-  next();
-}
-
-// ─── Wallet Validators ───────────────────────────────────────
-
-export function validateDeposit(req, _res, next) {
-  const { amount } = req.body;
-  const amt = parseFloat(amount);
-  if (isNaN(amt) || amt <= 0)
-    return next(new AppError("Deposit amount must be a positive number.", 400));
-  req.body.amount = amt;
-  next();
-}
-
-// ─── Order Validators ─────────────────────────────────────────
-// Applied to: POST /api/orders  (limit order placement)
-// Mirrors validateTrade — same coin/quantity/price rules + type check.
-
-export function validateOrder(req, _res, next) {
-  const { coin, quantity, price, type } = req.body;
-  const errors = [];
-
-  if (!coin || !SUPPORTED_COINS.includes(coin.toUpperCase()))
-    errors.push(`coin must be one of: ${SUPPORTED_COINS.join(", ")}.`);
-
-  const qty = parseFloat(quantity);
-  if (isNaN(qty) || qty <= 0)
-    errors.push("quantity must be a positive number.");
-
-  const prc = parseFloat(price);
-  if (isNaN(prc) || prc <= 0)
-    errors.push("price must be a positive number.");
-
-  if (!type || !["BUY", "SELL"].includes(String(type).toUpperCase()))
-    errors.push("type must be BUY or SELL.");
-
-  if (errors.length) return next(new AppError(errors.join(" "), 400));
-
-  // Normalise
-  req.body.coin     = coin.toUpperCase();
-  req.body.quantity = qty;
-  req.body.price    = prc;
-  req.body.type     = String(type).toUpperCase();
-  next();
-}
-
-// ─── Close Position Validator ─────────────────────────────────
-// Applied to: POST /api/trade/close
-// Validates coin and optional quantity (full-close if omitted).
-
-export function validateCloseTrade(req, _res, next) {
-  const { coin, quantity } = req.body;
-  const errors = [];
-
-  if (!coin || !SUPPORTED_COINS.includes(coin.toUpperCase()))
-    errors.push(`coin must be one of: ${SUPPORTED_COINS.join(", ")}.`);
-
-  // quantity is optional — if provided it must be a positive number
-  if (quantity !== undefined && quantity !== null) {
-    const qty = parseFloat(quantity);
-    if (isNaN(qty) || qty <= 0)
-      errors.push("quantity must be a positive number (omit to close the full position).");
-    else
-      req.body.quantity = qty;
-  } else {
-    req.body.quantity = null; // explicit null = full position close
+const validate = (schema, source = 'body') => (req, res, next) => {
+  try {
+    const data = schema.parse(req[source]);
+    req[source] = data; // replace with stripped/sanitized/normalized data
+    next();
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      const errors = err.errors.map(e => e.message).join(" ");
+      return next(new AppError(errors, 400));
+    }
+    next(err);
   }
+};
 
-  if (errors.length) return next(new AppError(errors.join(" "), 400));
+const signupSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters."),
+  email: z.string().email("A valid email is required."),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters.")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter.")
+    .regex(/[0-9]/, "Password must contain at least one number.")
+    .regex(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/, "Password must contain at least one special character.")
+}).strict(); // strict rejects unknown fields
 
-  req.body.coin = coin.toUpperCase();
-  next();
-}
+const loginSchema = z.object({
+  email: z.string().min(1, "Email is required."),
+  password: z.string().min(1, "Password is required.")
+}).strict();
 
-// ─── Report Validators ───────────────────────────────────────
+const tradeSchema = z.object({
+  coin: z.string().transform(v => v.toUpperCase()).refine(v => SUPPORTED_COINS.includes(v), {
+    message: `Coin must be one of: ${SUPPORTED_COINS.join(", ")}.`
+  }),
+  quantity: z.preprocess((val) => parseFloat(String(val)), z.number().positive("Quantity must be a positive number.")),
+  price: z.preprocess((val) => parseFloat(String(val)), z.number().positive("Price must be a positive number."))
+}).strict();
 
-export function validateReportQuery(req, _res, next) {
-  const { startDate, endDate, asset } = req.query;
+const depositSchema = z.object({
+  amount: z.preprocess((val) => parseFloat(String(val)), z.number().positive("Deposit amount must be a positive number."))
+}).strict();
 
-  if (startDate && isNaN(Date.parse(startDate)))
-    return next(new AppError("startDate is not a valid date.", 400));
-  if (endDate && isNaN(Date.parse(endDate)))
-    return next(new AppError("endDate is not a valid date.", 400));
-  if (startDate && endDate && new Date(startDate) > new Date(endDate))
-    return next(new AppError("startDate must be before endDate.", 400));
-  if (asset && !SUPPORTED_COINS.includes(asset.toUpperCase()))
-    return next(new AppError(`asset must be one of: ${SUPPORTED_COINS.join(", ")}.`, 400));
+const orderSchema = tradeSchema.extend({
+  type: z.string().transform(v => v.toUpperCase()).refine(v => ["BUY", "SELL"].includes(v), {
+    message: "type must be BUY or SELL."
+  })
+}).strict();
 
-  // Normalise
-  if (asset) req.query.asset = asset.toUpperCase();
-  next();
-}
+const closeTradeSchema = z.object({
+  coin: z.string().transform(v => v.toUpperCase()).refine(v => SUPPORTED_COINS.includes(v), {
+    message: `coin must be one of: ${SUPPORTED_COINS.join(", ")}.`
+  }),
+  quantity: z.preprocess((val) => {
+    if (val === undefined || val === null || val === "") return null;
+    return parseFloat(String(val));
+  }, z.number().positive("quantity must be a positive number (omit to close the full position).").nullable().optional())
+}).strict();
+
+const reportQuerySchema = z.object({
+  startDate: z.string().optional().refine(val => !val || !isNaN(Date.parse(val)), "startDate is not a valid date."),
+  endDate: z.string().optional().refine(val => !val || !isNaN(Date.parse(val)), "endDate is not a valid date."),
+  asset: z.string().optional().transform(v => v ? v.toUpperCase() : v).refine(v => !v || SUPPORTED_COINS.includes(v), {
+    message: `asset must be one of: ${SUPPORTED_COINS.join(", ")}.`
+  }),
+  limit: z.preprocess((val) => {
+    if (val !== undefined) return Number(val);
+  }, z.number().optional()),
+  days: z.preprocess((val) => {
+    if (val !== undefined) return Number(val);
+  }, z.number().optional()),
+}).refine(data => {
+  if (data.startDate && data.endDate) {
+    return new Date(data.startDate) <= new Date(data.endDate);
+  }
+  return true;
+}, { message: "startDate must be before endDate.", path: ["startDate"] });
+
+export const validateSignup = validate(signupSchema);
+export const validateLogin = validate(loginSchema);
+export const validateTrade = validate(tradeSchema);
+export const validateDeposit = validate(depositSchema);
+export const validateOrder = validate(orderSchema);
+export const validateCloseTrade = validate(closeTradeSchema);
+export const validateReportQuery = validate(reportQuerySchema, 'query');

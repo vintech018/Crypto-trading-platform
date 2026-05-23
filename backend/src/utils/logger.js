@@ -1,101 +1,54 @@
-/**
- * logger.js — lightweight structured logger
- *
- * Exports:
- *  - default export : logger object  (error / warn / info / debug)
- *  - named export   : httpLogger     (Express middleware — logs every HTTP request)
- *
- * In production swap the log() internals for winston / pino JSON output.
- */
+import pino from "pino";
 
-// ─── Level & colour map ───────────────────────────────────────
-const LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
-const COLOURS = {
-  error: "\x1b[31m",  // red
-  warn:  "\x1b[33m",  // yellow
-  info:  "\x1b[36m",  // cyan
-  debug: "\x1b[35m",  // magenta
-  reset: "\x1b[0m",
-};
+// ─── Structured logger (Pino) ───────────────────────────────
+const isProd = process.env.NODE_ENV === "production";
+const logLevel = process.env.LOG_LEVEL || "info";
 
-// Status-code colour: green 2xx, yellow 3xx, red 4xx/5xx
-function statusColour(code) {
-  if (code >= 500) return "\x1b[31m"; // red
-  if (code >= 400) return "\x1b[33m"; // yellow
-  if (code >= 300) return "\x1b[35m"; // magenta
-  return "\x1b[32m";                  // green
-}
+const pinoLogger = pino({
+  level: logLevel,
+  transport: isProd ? undefined : {
+    target: 'pino-pretty',
+    options: {
+      colorize: true,
+      translateTime: 'SYS:standard',
+      ignore: 'pid,hostname',
+    }
+  }
+});
 
-const currentLevel = LEVELS[process.env.LOG_LEVEL] ?? LEVELS.info;
-
-function log(level, message, meta) {
-  if (LEVELS[level] > currentLevel) return;
-  const ts  = new Date().toISOString();
-  const col = COLOURS[level] ?? "";
-  const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
-  console[level === "error" ? "error" : "log"](
-    `${col}[${ts}] [${level.toUpperCase()}]${COLOURS.reset} ${message}${metaStr}`
-  );
-}
-
-// ─── Structured logger (unchanged API) ───────────────────────
 const logger = {
-  error: (msg, meta) => log("error", msg, meta),
-  warn:  (msg, meta) => log("warn",  msg, meta),
-  info:  (msg, meta) => log("info",  msg, meta),
-  debug: (msg, meta) => log("debug", msg, meta),
+  error: (msg, meta) => meta ? pinoLogger.error(meta, msg) : pinoLogger.error(msg),
+  warn:  (msg, meta) => meta ? pinoLogger.warn(meta, msg)  : pinoLogger.warn(msg),
+  info:  (msg, meta) => meta ? pinoLogger.info(meta, msg)  : pinoLogger.info(msg),
+  debug: (msg, meta) => meta ? pinoLogger.debug(meta, msg) : pinoLogger.debug(msg),
 };
 
 export default logger;
 
 // ─── HTTP request logger middleware ──────────────────────────
-/**
- * Logs every HTTP request AFTER the response finishes so we can
- * capture the real status code and accurate response time.
- *
- * Format: [reqId] METHOD /path STATUS - Xms
- * Example: [a1b2-…] GET /api/auth/login 200 - 32ms
- *
- * Requires requestId middleware to run first (provides req.id).
- */
 export function httpLogger(req, res, next) {
   const startedAt = Date.now();
 
-  // Hook fires once the response is fully flushed to the client.
   res.on("finish", () => {
-    const ms     = Date.now() - startedAt;
-    const code   = res.statusCode;
-    const col    = statusColour(code);
-    const reset  = COLOURS.reset;
-    const reqId  = req.id ?? "-";
+    const ms = Date.now() - startedAt;
+    const code = res.statusCode;
+    const reqId = req.id ?? "-";
 
-    // Only log if info level is enabled
-    if (LEVELS.info <= currentLevel) {
-      console.log(
-        `\x1b[90m[${reqId}]${reset} ` +           // dim grey request ID
-        `\x1b[1m${req.method}${reset} ` +          // bold method
-        `${req.originalUrl} ` +                    // full URL with query string
-        `${col}${code}${reset} ` +                 // coloured status code
-        `\x1b[90m- ${ms}ms${reset}`                // grey latency
-      );
-    }
+    pinoLogger.info({
+      reqId,
+      method: req.method,
+      url: req.originalUrl,
+      status: code,
+      durationMs: ms
+    }, `${req.method} ${req.originalUrl} ${code} - ${ms}ms`);
   });
 
   next();
 }
 
 // ─── Structured Trade / Order Event Logging ─────────────────
-// Named exports for use in new middleware. Never logs tokens or passwords.
-
-/**
- * Log a trade execution event (BUY or SELL).
- * Called AFTER the trade is committed — captures outcome only.
- *
- * @param {"BUY"|"SELL"} type
- * @param {Object} params  — { userId, coin, quantity, price, totalValue, tradeId? }
- */
 export function logTradeExecution(type, { userId, coin, quantity, price, totalValue, tradeId } = {}) {
-  log("info", `[trade] ${type} executed`, {
+  logger.info(`[trade] ${type} executed`, {
     tradeId: tradeId ?? null,
     userId,
     coin,
@@ -105,13 +58,8 @@ export function logTradeExecution(type, { userId, coin, quantity, price, totalVa
   });
 }
 
-/**
- * Log an order placement event.
- *
- * @param {Object} params  — { userId, coin, quantity, price, type, orderId? }
- */
 export function logOrderPlacement({ userId, coin, quantity, price, type, orderId } = {}) {
-  log("info", "[order] limit order placed", {
+  logger.info("[order] limit order placed", {
     orderId: orderId ?? null,
     userId,
     coin,
@@ -121,16 +69,8 @@ export function logOrderPlacement({ userId, coin, quantity, price, type, orderId
   });
 }
 
-/**
- * Log a trade or order failure.
- * Sanitises the error — never propagates stack traces to external log sinks.
- *
- * @param {string}       context   — "trade" | "order" | "auth" etc.
- * @param {Error|string} err
- * @param {Object}       [meta]    — additional safe context (no tokens)
- */
 export function logFailure(context, err, meta = {}) {
-  log("error", `[${context}] operation failed`, {
+  logger.error(`[${context}] operation failed`, {
     error: err instanceof Error ? err.message : String(err),
     ...meta,
   });

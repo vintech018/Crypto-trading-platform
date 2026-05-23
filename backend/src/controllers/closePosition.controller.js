@@ -30,6 +30,7 @@ import { createAlert }          from "./alert.controller.js";
 import { emitTradeUpdate, emitPositionClosed } from "../websocket.js";
 import { round }                from "../utils/decimal.js";
 import logger                   from "../utils/logger.js";
+import { emitTradeEvent }       from "../analytics/services/analyticsEmitter.js";
 
 /**
  * POST /api/trade/close
@@ -76,6 +77,18 @@ export async function closeTrade(req, res, next) {
         createdAt:   trade.createdAt,
       },
       portfolio,
+    });
+
+    // ─── Analytics sidecar: fire-and-forget replication to PostgreSQL ───────
+    emitTradeEvent({
+      userId,
+      tradeId:   trade._id,
+      asset:     trade.coin,
+      tradeType: "SELL",
+      amount:    trade.totalValue,
+      pnl:       realisedPnL ?? 0,
+      price:     trade.price,
+      quantity:  trade.quantity,
     });
 
     logger.info("[closeTrade] position closed via API", {

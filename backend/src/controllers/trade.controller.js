@@ -5,6 +5,9 @@ import { sendSuccess } from "../utils/helpers.js";
 import { createAlert } from "./alert.controller.js";
 import { emitTradeUpdate } from "../websocket.js";
 import { D, round } from "../utils/decimal.js";
+// ─── Analytics sidecar (PostgreSQL — fire-and-forget, non-blocking) ──────
+// Import ONLY the replication helper. If PostgreSQL is down, trades still work.
+import { emitTradeEvent } from "../analytics/services/analyticsEmitter.js";
 
 
 /**
@@ -20,6 +23,20 @@ export async function buy(req, res, next) {
 
     const portfolio = await getPortfolio(req.user.id);
     emitTradeUpdate(req.user.id, { portfolio, latestTrade: trade, pnl: 0 });
+
+    // ─── Analytics sidecar: fire-and-forget replication to PostgreSQL ───────
+    // This call is intentionally NOT awaited. Trade success is guaranteed
+    // regardless of PostgreSQL availability. Never throws or blocks.
+    emitTradeEvent({
+      userId:    req.user.id,
+      tradeId:   trade._id,
+      asset:     trade.coin,
+      tradeType: "BUY",
+      amount:    trade.totalValue,
+      pnl:       0, // BUY trades have no realised P&L
+      price:     trade.price,
+      quantity:  trade.quantity,
+    });
 
     return sendSuccess(res, 200, `BUY order for ${quantity} ${coin} executed.`, {
       trade: {
@@ -53,6 +70,19 @@ export async function sell(req, res, next) {
 
     const portfolio = await getPortfolio(req.user.id);
     emitTradeUpdate(req.user.id, { portfolio, latestTrade: trade, pnl: realisedPnL });
+
+    // ─── Analytics sidecar: fire-and-forget replication to PostgreSQL ───────
+    // Non-blocking. Trade response is sent immediately after MongoDB writes.
+    emitTradeEvent({
+      userId:    req.user.id,
+      tradeId:   trade._id,
+      asset:     trade.coin,
+      tradeType: "SELL",
+      amount:    trade.totalValue,
+      pnl:       realisedPnL ?? 0,
+      price:     trade.price,
+      quantity:  trade.quantity,
+    });
 
     return sendSuccess(res, 200, `SELL order for ${quantity} ${coin} executed.`, {
       trade: {

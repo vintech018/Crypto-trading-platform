@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { motion } from "framer-motion";
 
 interface SpotlightCardProps extends React.PropsWithChildren {
     className?: string;

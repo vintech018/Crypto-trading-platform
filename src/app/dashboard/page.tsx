@@ -6,10 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Wallet, TrendingUp, CandlestickChart, LogOut } from "lucide-react";
 import { api, auth, ApiResponse } from "@/lib/apiClient";
 
-interface WalletData {
-    balance: number
-    updatedAt: string
-}
+
 
 export default function Dashboard() {
     const [totalValue, setTotalValue] = useState<number | null>(null)

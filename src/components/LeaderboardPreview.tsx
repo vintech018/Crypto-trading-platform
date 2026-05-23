@@ -5,6 +5,7 @@ import { Trophy, TrendingUp, ArrowUpRight } from "lucide-react";
 import { InteractiveGridPattern } from "./ui/interactive-grid-pattern";
 
 import Link from "next/link";
+import Image from "next/image";
 
 export function LeaderboardPreview() {
     const leaderboardData = [
@@ -125,7 +126,7 @@ export function LeaderboardPreview() {
                                         {/* Trader */}
                                         <motion.div variants={{ hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0 } }} className="relative z-10 flex items-center gap-4">
                                             <div className="w-11 h-11 rounded-full bg-[#161616] border-2 border-white/[0.06] flex items-center justify-center shrink-0 group-hover:scale-110 group-hover:border-white/40 group-hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] transition-all duration-300 overflow-hidden">
-                                                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${row.trader}`} alt="avatar" className="w-full h-full object-cover" />
+                                                <Image src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${row.trader}`} alt="avatar" width={44} height={44} unoptimized className="w-full h-full object-cover" />
                                             </div>
                                             <div className="flex flex-col">
                                                 <span className="font-bold text-white group-hover:text-neutral-200 transition-colors">{row.trader}</span>

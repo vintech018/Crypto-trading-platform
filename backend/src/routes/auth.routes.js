@@ -27,9 +27,11 @@ import {
   validateLogin,
 } from "../middlewares/validate.middleware.js";
 
+import { env }      from "../config/env.js";
+
 const router = Router();
 
-const FRONTEND = process.env.FRONTEND_URL || "http://localhost:3000";
+const FRONTEND = env.FRONTEND_URL;
 
 // ── Email / Password ───────────────────────────────────────────
 router.post("/signup",  authLimiter, validateSignup, ctrl.signup);
@@ -54,6 +56,11 @@ router.post("/logout",  authenticate, ctrl.logout);
 router.get("/google", (req, res, next) => {
   const mode  = req.query.mode === "signup" ? "signup" : "login";
   const state = Buffer.from(JSON.stringify({ mode })).toString("base64");
+  
+  console.log("\n[OAuth Debug] GET /api/auth/google");
+  console.log("Mode:", mode);
+  console.log("Headers Origin:", req.headers.origin);
+  console.log("Cookies:", req.cookies);
 
   passport.authenticate("google", {
     scope:   ["profile", "email"],
@@ -74,14 +81,27 @@ router.get("/google", (req, res, next) => {
  *   oauth_failed    → any other passport error
  */
 router.get("/google/callback", (req, res, next) => {
+  console.log("\n[OAuth Debug] GET /api/auth/google/callback Hit!");
+  console.log("Query:", req.query);
+  console.log("Cookies before passport auth:", req.cookies);
+
   passport.authenticate("google", { session: false }, (err, user, info) => {
+    console.log("[OAuth Debug] Callback passport auth finished");
+    console.log("Err:", err);
+    console.log("User:", !!user);
+    console.log("Info:", info);
+
     if (err) {
+      console.log("[OAuth Debug] Redirecting to error (oauth_failed)");
       return res.redirect(`${FRONTEND}/login?error=oauth_failed`);
     }
     if (!user) {
       const code = info?.code || "oauth_failed";
+      console.log(`[OAuth Debug] Redirecting to error (${code})`);
       return res.redirect(`${FRONTEND}/login?error=${encodeURIComponent(code)}`);
     }
+    
+    console.log("[OAuth Debug] User authenticated, attaching to req and calling next()");
     // Attach user so googleCallback can read it
     req.user = user;
     next();

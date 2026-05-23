@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
 import { Menu, X } from "lucide-react";
 
@@ -39,7 +40,7 @@ export function Navbar() {
                 <div className="flex items-center justify-between h-20">
                     {/* Logo */}
                     <Link href="/" className="flex items-center gap-3">
-                        <img src="/logo.svg" alt="Solidus Logo" width={32} height={32} />
+                        <Image src="/logo.svg" alt="Solidus Logo" width={32} height={32} unoptimized />
                         <span className="font-display font-bold text-2xl tracking-tighter text-white">
                             SOLIDUS<span className="text-white/50">.</span>
                         </span>

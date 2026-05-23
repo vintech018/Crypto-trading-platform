@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useMarketStore } from '@/state/marketStore'
+import { useState } from 'react'
+
 import { Grid3X3 } from 'lucide-react'
 
 const CORRELATION_DATA = [
@@ -80,7 +80,7 @@ export function OnChainPanel() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {CORRELATION_DATA.map((row, ri) => (
+                                    {CORRELATION_DATA.map((row) => (
                                         <tr key={row.name}>
                                             <td className="text-white/40 pr-2 py-0.5">{row.name}</td>
                                             {row.values.map((v, ci) => (

@@ -97,11 +97,11 @@ export function clearPositionLines() {
 }
 
 /** @deprecated no-op — live tracking removed per spec */
-export function updatePositionClosePrice(_price: number) { /* no-op */ }
+export function updatePositionClosePrice() { /* no-op */ }
 
 function _syncGlobal() {
     if (typeof window === 'undefined') return
-    // @ts-ignore — intentional global for AI bot
+    // @ts-expect-error — intentional global for AI bot
     window.__positionLines = _active
         ? { open: _active.price, close: _active.price, side: _active.side }
         : null
@@ -177,6 +177,7 @@ export function PositionLines() {
         }
 
         rafRef.current = requestAnimationFrame(draw)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPrice, activeSymbol])
 
     useEffect(() => {

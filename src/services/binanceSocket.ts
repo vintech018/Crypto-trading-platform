@@ -80,29 +80,44 @@ class BinanceSocketManager {
 
     // ── Core connect with auto-reconnect ─────────────────────────
     private connect(key: string, url: string, onMessage: (msg: string) => void) {
+        if (typeof window === 'undefined') return
         if (this.isDestroyed) return
+        
         const existing = this.sockets.get(key)
-        if (existing && existing.readyState === WebSocket.OPEN) return
+        if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) return
 
-        const ws = new WebSocket(url)
-        this.sockets.set(key, ws)
+        try {
+            const ws = new WebSocket(url)
+            this.sockets.set(key, ws)
 
-        ws.onmessage = e => onMessage(e.data as string)
-        ws.onerror = () => ws.close()
-        ws.onclose = () => {
-            if (!this.isDestroyed) {
-                const timer = setTimeout(() => {
-                    this.sockets.delete(key)
-                    this.connect(key, url, onMessage)
-                }, 3000)
-                this.reconnectTimers.set(key, timer)
+            ws.onmessage = e => onMessage(e.data as string)
+            ws.onerror = (e) => {
+                console.warn(`[Binance WS Error] ${key}`, e)
+                // Let onclose handle the reconnect
             }
+            ws.onclose = () => {
+                if (!this.isDestroyed) {
+                    const timer = setTimeout(() => {
+                        this.sockets.delete(key)
+                        this.connect(key, url, onMessage)
+                    }, 3000)
+                    this.reconnectTimers.set(key, timer)
+                }
+            }
+        } catch (err) {
+            console.error(`[Binance WS Initialization Error] ${key} - ${url}`, err)
         }
     }
 
     private disconnect(key: string) {
         const ws = this.sockets.get(key)
-        if (ws) { ws.onclose = null; ws.close(); this.sockets.delete(key) }
+        if (ws) { 
+            ws.onclose = null
+            ws.onerror = null
+            ws.onmessage = null
+            ws.close()
+            this.sockets.delete(key) 
+        }
         const timer = this.reconnectTimers.get(key)
         if (timer) { clearTimeout(timer); this.reconnectTimers.delete(key) }
     }

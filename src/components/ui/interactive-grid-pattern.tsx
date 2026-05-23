@@ -16,10 +16,7 @@ export interface InteractiveGridPatternProps {
     proximity?: number
 }
 
-interface CellState {
-    hovered: boolean
-    proximity: number // 0-1 based on distance from mouse
-}
+
 
 export function InteractiveGridPattern({
     className,

@@ -172,7 +172,7 @@ export function TradeExecution() {
                     // REVERT the optimistic local position to prevent state desync
                     const closePosition = useMarketStore.getState().closePosition
                     closePosition(pos.id)
-                } catch(e) {}
+                } catch {}
                 setLastAction(null)
             } finally {
                 setIsSubmitting(false)

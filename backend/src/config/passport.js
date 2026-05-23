@@ -44,6 +44,8 @@ function makeLoginEvent(req, method) {
   };
 }
 
+logger.info(`🔗 Initialising Google OAuth Strategy with callback: ${env.GOOGLE_CALLBACK_URL}`);
+
 passport.use(
   new GoogleStrategy(
     {
@@ -54,6 +56,11 @@ passport.use(
       passReqToCallback:  true,   // injects req as first arg to verify fn
     },
     async (req, _accessToken, _refreshToken, profile, done) => {
+      console.log("\n[OAuth Debug] Passport verify callback triggered");
+      console.log("Profile ID:", profile.id);
+      console.log("Req Headers Origin:", req.headers.origin);
+      console.log("Req Cookies:", req.cookies);
+
       try {
         const email          = profile.emails?.[0]?.value?.toLowerCase();
         const googleId       = profile.id;
@@ -93,6 +100,7 @@ passport.use(
           user.lastLogin = loginEvent.timestamp;
           if (!Array.isArray(user.loginHistory)) user.loginHistory = [];
           user.loginHistory.push(loginEvent);
+          if (user.loginHistory.length > 50) user.loginHistory = user.loginHistory.slice(-50);
           await user.save();
           logger.info("Google OAuth login", { userId: user._id, email, ip: loginEvent.ip });
           return done(null, user);

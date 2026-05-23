@@ -12,6 +12,9 @@
  *  3. On refresh failure → clears auth state and redirects to /login
  */
 
+if (process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_BACKEND_URL) {
+  console.warn("[apiClient] WARNING: NEXT_PUBLIC_BACKEND_URL is not defined in production. Falling back to localhost.")
+}
 const BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5050'
 
 // ── Token helpers ──────────────────────────────────────────────
@@ -103,15 +106,23 @@ export async function apiFetch<T = unknown>(
 
   const token = auth.getAccessToken()
 
-  const makeHeaders = (t: string | null): Record<string, string> => ({
-    'Content-Type': 'application/json',
-    ...(t && !skipAuth ? { Authorization: `Bearer ${t}` } : {}),
-    ...(customHeaders as Record<string, string>),
-  })
+  const makeHeaders = (t: string | null, isFormData: boolean): Record<string, string> => {
+    const headers: Record<string, string> = {
+      ...(t && !skipAuth ? { Authorization: `Bearer ${t}` } : {}),
+      ...(customHeaders as Record<string, string>),
+    }
+    // Only set application/json if it's not FormData
+    if (!isFormData && !headers['Content-Type']) {
+      headers['Content-Type'] = 'application/json'
+    }
+    return headers
+  }
+
+  const isFormData = options.body instanceof FormData
 
   const doFetch = (t: string | null) =>
     fetch(`${BASE}${path}`, {
-      headers:     makeHeaders(t),
+      headers:     makeHeaders(t, isFormData),
       credentials: 'include', // always send cookies (solidus_access httpOnly cookie)
       ...rest,
     })
@@ -146,11 +157,15 @@ export const api = {
   get:    <T>(path: string, opts?: FetchOptions) =>
     apiFetch<T>(path, { method: 'GET', ...opts }),
 
-  post:   <T>(path: string, body: unknown, opts?: FetchOptions) =>
-    apiFetch<T>(path, { method: 'POST', body: JSON.stringify(body), ...opts }),
+  post:   <T>(path: string, body: unknown, opts?: FetchOptions) => {
+    const isFormData = body instanceof FormData;
+    return apiFetch<T>(path, { method: 'POST', body: isFormData ? body as BodyInit : JSON.stringify(body), ...opts });
+  },
 
-  put:    <T>(path: string, body: unknown, opts?: FetchOptions) =>
-    apiFetch<T>(path, { method: 'PUT', body: JSON.stringify(body), ...opts }),
+  put:    <T>(path: string, body: unknown, opts?: FetchOptions) => {
+    const isFormData = body instanceof FormData;
+    return apiFetch<T>(path, { method: 'PUT', body: isFormData ? body as BodyInit : JSON.stringify(body), ...opts });
+  },
 
   delete: <T>(path: string, opts?: FetchOptions) =>
     apiFetch<T>(path, { method: 'DELETE', ...opts }),

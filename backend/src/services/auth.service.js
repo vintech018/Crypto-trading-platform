@@ -77,7 +77,7 @@ export async function signup({ name, email, password }) {
   user.loginHistory = [signupEvent];
   await user.save();
 
-  const { accessToken, refreshToken } = issueTokenPair(user);
+  const { accessToken, refreshToken } = await issueTokenPair(user);
   return { accessToken, refreshToken, user: sanitiseUser(user) };
 }
 
@@ -107,11 +107,12 @@ export async function login({ email, password, ip, userAgent }) {
   user.lastLogin = loginEvent.timestamp;
   if (!Array.isArray(user.loginHistory)) user.loginHistory = [];
   user.loginHistory.push(loginEvent);
+  if (user.loginHistory.length > 50) user.loginHistory = user.loginHistory.slice(-50);
   await user.save();
 
   logger.info("User logged in", { userId: user._id, ip });
 
-  const { accessToken, refreshToken } = issueTokenPair(user);
+  const { accessToken, refreshToken } = await issueTokenPair(user);
   return { accessToken, refreshToken, user: sanitiseUser(user) };
 }
 
@@ -123,7 +124,7 @@ export async function login({ email, password, ip, userAgent }) {
  * @param {string} token — raw refresh JWT passed by the client
  * @returns {{ accessToken: string }}
  */
-export function refreshAccessToken(token) {
+export async function refreshAccessToken(token) {
   // 1. Verify the JWT signature + expiry
   let decoded;
   try {
@@ -139,7 +140,8 @@ export function refreshAccessToken(token) {
 
   // 2. Make sure the token is still in our store
   //    (revoked on logout, so even a valid-looking JWT is rejected)
-  if (!refreshTokenStore.isValid(id, token)) {
+  const isValid = await refreshTokenStore.isValid(id, token);
+  if (!isValid) {
     throw new AppError("Refresh token has been revoked. Please log in again.", 401);
   }
 
@@ -194,14 +196,14 @@ function signRefreshToken(user) {
  * Issue an access + refresh token pair and persist the refresh token.
  * Both tokens are returned so the caller can send them to the client.
  */
-function issueTokenPair(user) {
+async function issueTokenPair(user) {
   const accessToken  = signAccessToken(user);
   const refreshToken = signRefreshToken(user);
 
   // Decode (without verifying) to read the exp claim for storage
   const { exp } = jwt.decode(refreshToken);
   const userId  = user._id ? user._id.toString() : user.id;
-  refreshTokenStore.save(userId, refreshToken, exp);
+  await refreshTokenStore.save(userId, refreshToken, exp);
 
   return { accessToken, refreshToken };
 }

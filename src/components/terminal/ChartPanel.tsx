@@ -25,8 +25,9 @@ const TVChart = memo(function TVChart({ symbol, interval }: TVChartProps) {
     const ref = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
-        if (!ref.current) return
-        ref.current.innerHTML = ''
+        const currentRef = ref.current;
+        if (!currentRef) return
+        currentRef.innerHTML = ''
 
         const container = document.createElement('div')
         container.className = 'tradingview-widget-container'
@@ -64,18 +65,16 @@ const TVChart = memo(function TVChart({ symbol, interval }: TVChartProps) {
 
         container.appendChild(inner)
         container.appendChild(script)
-        ref.current.appendChild(container)
+        currentRef.appendChild(container)
 
-        // Fire a resize event whenever the container dimensions change so
-        // TradingView's embedded iframe recalculates its own layout.
         const ro = new ResizeObserver(() => {
             window.dispatchEvent(new Event('resize'))
         })
-        if (ref.current) ro.observe(ref.current)
+        if (currentRef) ro.observe(currentRef)
 
         return () => {
             ro.disconnect()
-            if (ref.current) ref.current.innerHTML = ''
+            if (currentRef) currentRef.innerHTML = ''
         }
     }, [symbol, interval])
 

@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 import {
-    Wallet, TrendingUp, TrendingDown, CandlestickChart,
+    Wallet, TrendingUp, CandlestickChart,
     BarChart3, Cpu, ArrowLeft, Layers, Activity,
-    ArrowUpRight, ArrowDownRight, ChevronRight, Zap, FileBarChart
+    ArrowUpRight, ArrowDownRight, ChevronRight, Zap, FileBarChart, Camera, Loader2
 } from 'lucide-react'
 
 import { getBinanceManager } from '@/services/binanceSocket'
@@ -48,19 +49,20 @@ function PortfolioCard({ label, value, sub, icon: Icon, glowColor }: {
     )
 }
 
-function QuickActionBtn({ href, icon: Icon, label, description, primary }: {
+function QuickActionBtn({ href, icon: Icon, label, description, primary, onClick }: {
     href: string
     icon: React.ElementType
     label: string
     description: string
     primary?: boolean
+    onClick?: () => void
 }) {
     return (
-        <Link href={href}>
+        <Link href={href} className="flex h-full" onClick={onClick}>
             <motion.div
                 whileHover={{ scale: 1.015, y: -1 }}
                 whileTap={{ scale: 0.98 }}
-                className={`flex items-center gap-4 p-5 rounded-xl border cursor-pointer transition-all group
+                className={`flex items-center gap-4 p-5 w-full h-full rounded-xl border cursor-pointer transition-all group
           ${primary
                         ? 'border-white/20 bg-white text-black hover:bg-white/95 shadow-[0_0_30px_rgba(255,255,255,0.15)]'
                         : 'border-white/[0.08] bg-white/[0.025] text-white hover:border-white/15 hover:bg-white/[0.04]'
@@ -182,16 +184,105 @@ function AIInsightCard() {
     )
 }
 
+// ─── Inline Avatar Component ──────────────────────────────────
+function HubAvatarUpload({
+    currentUrl,
+    userName,
+    onSuccess,
+}: {
+    currentUrl: string | null
+    userName: string | null
+    onSuccess: (url: string) => void
+}) {
+    const fileRef = useRef<HTMLInputElement>(null)
+    const [uploading, setUploading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        try {
+            setUploading(true)
+            setError(null)
+            const formData = new FormData()
+            formData.append('avatar', file)
+
+            const res = await api.post<ApiResponse<{ profilePicture: string }>>(
+                '/api/uploads/avatar',
+                formData
+            )
+
+            if (res.success && res.data?.profilePicture) {
+                onSuccess(res.data.profilePicture)
+            } else {
+                throw new Error(res.message || 'Upload failed')
+            }
+        } catch (err: unknown) {
+            console.error('Avatar upload failed:', err)
+            setError(err instanceof Error ? err.message : 'Failed to upload avatar')
+        } finally {
+            setUploading(false)
+            if (fileRef.current) fileRef.current.value = ''
+        }
+    }
+
+    return (
+        <div className="relative group shrink-0">
+            <input
+                type="file"
+                ref={fileRef}
+                onChange={handleFileChange}
+                accept="image/jpeg, image/png, image/webp"
+                className="hidden"
+            />
+
+            <button
+                onClick={() => !uploading && fileRef.current?.click()}
+                disabled={uploading}
+                className="relative w-16 h-16 rounded-full overflow-hidden border border-white/[0.15] bg-white/[0.05] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-white/20 transition-all shadow-[0_0_15px_rgba(255,255,255,0.05)] hover:shadow-[0_0_20px_rgba(255,255,255,0.1)] group-hover:border-white/[0.3]"
+            >
+                {currentUrl ? (
+                    <Image src={currentUrl} alt="Avatar" width={64} height={64} unoptimized className="w-full h-full object-cover" />
+                ) : (
+                    <span className="text-xl font-bold text-white/50">{userName?.charAt(0)?.toUpperCase() || 'U'}</span>
+                )}
+
+                {/* Uploading Overlay */}
+                {uploading && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm z-10">
+                        <Loader2 className="animate-spin text-cyan-400 w-5 h-5" />
+                    </div>
+                )}
+
+                {/* Hover Overlay */}
+                {!uploading && (
+                    <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                        <Camera className="w-4 h-4 text-white/80 mb-0.5" />
+                        <span className="text-[8px] font-bold text-white/80 uppercase tracking-wider">Change</span>
+                    </div>
+                )}
+            </button>
+
+            {/* Error Toast */}
+            {error && (
+                <div className="absolute top-full mt-2 left-0 w-max max-w-xs bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] px-2 py-1.5 rounded-lg z-20 shadow-lg">
+                    {error}
+                </div>
+            )}
+        </div>
+    )
+}
+
 // ─── Main Hub Page ───────────────────────────────────────────
 
 export default function HubPage() {
-    const equity            = useMarketStore(s => s.equity)
     const buyingPower       = useMarketStore(s => s.walletBalance)
     const holdings          = useMarketStore(s => s.holdings)
     const prices            = useMarketStore(s => s.prices)
-    const totalPortValue    = useMarketStore(s => s.totalPortfolioValue)
     const initFromBackend   = useMarketStore(s => s.initFromBackend)
     const [userName, setUserName] = useState<string | null>(null)
+    const [userAvatar, setUserAvatar] = useState<string | null>(null)
     const [mounted,  setMounted]  = useState(false)
     const isInitialized = useMarketStore(s => s.isInitialized)
 
@@ -205,14 +296,15 @@ export default function HubPage() {
         getBinanceManager().connectTicker()
         // Load real wallet data from backend
         initFromBackend()
-        // Fetch user name for greeting
-        api.get<ApiResponse<{ user: { name: string; email: string } }>>('/api/auth/me')
-            .then(res => setUserName(res.data?.user?.name ?? null))
+        // Fetch user name and avatar for greeting
+        api.get<ApiResponse<{ user: { name: string; email: string; profilePicture?: string } }>>('/api/auth/me')
+            .then(res => {
+                setUserName(res.data?.user?.name ?? null)
+                setUserAvatar(res.data?.user?.profilePicture ?? null)
+            })
             .catch(() => {})
     }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
-    const btcPrice = prices['BTCUSDT']?.price ?? 0
-    const ethPrice = prices['ETHUSDT']?.price ?? 0
 
     const now = new Date()
     const hour = now.getHours()
@@ -283,18 +375,20 @@ export default function HubPage() {
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="flex items-center gap-4 mb-10"
+                        className="flex items-center gap-5 mb-10"
                     >
-                        <div className="w-12 h-12 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center">
-                            <Wallet size={22} className="text-white/60" />
+                        <HubAvatarUpload 
+                            currentUrl={userAvatar}
+                            userName={userName}
+                            onSuccess={(newUrl) => setUserAvatar(newUrl)}
+                        />
+                        <div className="flex flex-col justify-center">
+                            <h1 className="text-3xl font-bold text-white tracking-tight leading-tight">{greeting},<br className="sm:hidden" /> {displayName}</h1>
+                            <p className="text-[13px] text-white/40 mt-1.5 font-medium tracking-wide">Your trading environment is ready.</p>
                         </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white tracking-tight">{greeting}, {displayName}</h1>
-                            <p className="text-sm text-white/35 mt-0.5">Your trading environment is ready.</p>
-                        </div>
-                        <div className="ml-auto hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className="text-[10px] text-emerald-400 font-mono">Markets Open</span>
+                        <div className="ml-auto hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.05)]">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span className="text-[11px] text-emerald-400 font-mono tracking-widest font-semibold uppercase">Markets Open</span>
                         </div>
                     </motion.div>
 
@@ -336,7 +430,7 @@ export default function HubPage() {
                         className="mb-8"
                     >
                         <div className="text-[10px] text-white/25 uppercase tracking-widest font-semibold mb-3">Quick Actions</div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                             <QuickActionBtn
                                 href="/terminal"
                                 icon={CandlestickChart}
@@ -355,6 +449,13 @@ export default function HubPage() {
                                 icon={FileBarChart}
                                 label="Trade Reports"
                                 description="History · P/L · Excel & PDF export"
+                            />
+                            <QuickActionBtn
+                                href="/hub/analytics"
+                                icon={BarChart3}
+                                label="PostgreSQL Analytics"
+                                description="Advanced metrics · P/L · streaks"
+                                onClick={() => console.log("PostgreSQL analytics clicked")}
                             />
                         </div>
                     </motion.div>

@@ -1,29 +1,40 @@
 import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 import { env } from "./config/env.js";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { redisPubClient, redisSubClient } from "./config/redis.js";
 
 let io;
 
 export function initWebSocket(server) {
   io = new Server(server, {
     cors: {
-      origin: env.CORS_ORIGIN.split(","),
+      origin: env.CORS_ORIGIN.split(",").map(o => o.trim()).filter(Boolean),
       credentials: true,
     },
+    adapter: createAdapter(redisPubClient, redisSubClient),
   });
 
   io.use((socket, next) => {
     try {
-      const cookieHeader = socket.handshake.headers.cookie;
-      if (!cookieHeader) return next(new Error("Authentication error"));
+      let token = socket.handshake.auth?.token;
 
-      const cookies = cookieHeader.split(";").reduce((acc, cookie) => {
-        const [key, value] = cookie.split("=").map((c) => c.trim());
-        acc[key] = value;
-        return acc;
-      }, {});
+      if (!token && socket.handshake.headers.authorization) {
+        const authHeader = socket.handshake.headers.authorization;
+        if (authHeader.startsWith("Bearer ")) {
+          token = authHeader.substring(7);
+        }
+      }
 
-      const token = cookies.solidus_access;
+      if (!token && socket.handshake.headers.cookie) {
+        const cookies = socket.handshake.headers.cookie.split(";").reduce((acc, cookie) => {
+          const [key, value] = cookie.split("=").map((c) => c.trim());
+          acc[key] = value;
+          return acc;
+        }, {});
+        token = cookies.solidus_access;
+      }
+
       if (!token) return next(new Error("Authentication error"));
 
       const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET);
@@ -34,13 +45,53 @@ export function initWebSocket(server) {
     }
   });
 
+  // --- CONCURRENCY & RATE LIMITING ---
+  // MAX_SUBSCRIPTIONS prevents memory leaks from too many active streams per user
+  // RATE_LIMIT_WINDOW and MAX_EVENTS_PER_WINDOW throttle spammy clients
+  const MAX_SUBSCRIPTIONS = 20;
+  const RATE_LIMIT_WINDOW = 60000; // 1 min
+  const MAX_EVENTS_PER_WINDOW = 120;
+
   io.on("connection", (socket) => {
+    // Throttling / Rate limiting
+    socket.eventCount = 0;
+    socket.windowStart = Date.now();
+    socket.subscriptions = new Set();
+
+    socket.use((event, next) => {
+      const now = Date.now();
+      if (now - socket.windowStart > RATE_LIMIT_WINDOW) {
+        socket.windowStart = now;
+        socket.eventCount = 0;
+      }
+      
+      socket.eventCount++;
+      if (socket.eventCount > MAX_EVENTS_PER_WINDOW) {
+        return next(new Error("Rate limit exceeded"));
+      }
+
+      // Check subscription caps if this is a subscribe event (custom logic depending on how UI subscribes)
+      if (event[0] === "subscribe") {
+        if (socket.subscriptions.size >= MAX_SUBSCRIPTIONS) {
+          return next(new Error(`Maximum subscription limit reached (${MAX_SUBSCRIPTIONS})`));
+        }
+        socket.subscriptions.add(event[1]);
+      }
+      
+      // Prevent subscription leaks by cleaning up on unsubscribe
+      if (event[0] === "unsubscribe") {
+        socket.subscriptions.delete(event[1]);
+      }
+      next();
+    });
+
     // Automatically join the user's room upon successful connection
     socket.join(socket.userId);
     socket.emit("authenticated", { message: "Connected to real-time feed." });
 
     socket.on("disconnect", () => {
-      // Automatic cleanup
+      socket.subscriptions.clear();
+      // Automatic cleanup handled by socket.io natively (rooms etc)
     });
   });
 

@@ -92,6 +92,7 @@ export function AIInsights() {
         if (!tick) return
         setInsights(generateInsights(activeSymbol, tick.price, tick.changePct24h))
         setLastUpdate(Date.now())
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeSymbol, prices[activeSymbol]?.price])
 
     const SENTIMENT_SCORE = insights.reduce((acc, ins) => {

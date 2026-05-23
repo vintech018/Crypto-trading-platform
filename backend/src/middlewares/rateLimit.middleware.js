@@ -7,6 +7,9 @@
  */
 
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { RedisStore } from "rate-limit-redis";
+import { redisClient } from "../config/redis.js";
+import { env } from "../config/env.js";
 
 // ─── Shared handler ───────────────────────────────────────────
 // Returns a clean JSON error instead of the default plain-text response.
@@ -28,9 +31,13 @@ export const authLimiter = rateLimit({
   standardHeaders:  true,            // send RateLimit-* headers (RFC 6585)
   legacyHeaders:    false,           // don't send deprecated X-RateLimit-* headers
   handler:          rateLimitHandler,
+  store:            env.IS_PROD ? new RedisStore({
+    sendCommand: (...args) => redisClient.call(...args),
+    prefix: "rl:auth:"
+  }) : undefined,
 
   // ipKeyGenerator handles IPv4-mapped IPv6 addresses correctly (::ffff:x.x.x.x)
-  keyGenerator: (req) => `auth_${ipKeyGenerator(req)}`,
+  keyGenerator: (req) => ipKeyGenerator(req),
 });
 
 // ─── Strict limiter (for sensitive ops) ──────────────────────
@@ -42,5 +49,25 @@ export const strictLimiter = rateLimit({
   standardHeaders:  true,
   legacyHeaders:    false,
   handler:          rateLimitHandler,
-  keyGenerator:     (req) => `strict_${ipKeyGenerator(req)}`,
+  store:            env.IS_PROD ? new RedisStore({
+    sendCommand: (...args) => redisClient.call(...args),
+    prefix: "rl:strict:"
+  }) : undefined,
+  keyGenerator:     (req) => ipKeyGenerator(req),
+});
+
+// ─── Upload limiter (for media and KYC) ───────────────────────
+// Applied to: POST /api/uploads/avatar, POST /api/uploads/kyc
+// 20 attempts per hour per IP.
+export const uploadLimiter = rateLimit({
+  windowMs:         60 * 60 * 1000,  // 1 hour
+  max:              20,
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  handler:          rateLimitHandler,
+  store:            env.IS_PROD ? new RedisStore({
+    sendCommand: (...args) => redisClient.call(...args),
+    prefix: "rl:upload:"
+  }) : undefined,
+  keyGenerator:     (req) => ipKeyGenerator(req),
 });

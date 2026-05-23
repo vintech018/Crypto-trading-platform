@@ -24,6 +24,8 @@ import logger         from "./utils/logger.js";
 import { connectDB }  from "./config/db.js";
 import { startNewsCronJob } from "./jobs/news.job.js";
 import { initWebSocket } from "./websocket.js";
+import { startPortfolioSnapshotJob } from "./jobs/portfolioSnapshot.job.js";
+import { startAnalyticsWorker, stopAnalyticsWorker } from "./jobs/analyticsWorker.js";
 
 // ─── Port Conflict Detection ──────────────────────────────────
 const DESIRED_PORT = env.PORT;
@@ -33,7 +35,7 @@ const DESIRED_PORT = env.PORT;
  * Attempts up to 10 consecutive ports before giving up.
  */
 function startServer(port, attempt = 0) {
-  const MAX_ATTEMPTS = 10;
+  const MAX_ATTEMPTS = env.IS_PROD ? 1 : 10;
 
   const server = app.listen(port, () => {
     if (port !== DESIRED_PORT) {
@@ -52,6 +54,13 @@ function startServer(port, attempt = 0) {
     // Initialize WebSocket Server
     initWebSocket(server);
     logger.info(`✅ WebSocket (Socket.IO) server started.`);
+
+    // Start analytics cron jobs
+    startPortfolioSnapshotJob();
+    logger.info("✅ Portfolio snapshot cron job started (daily at midnight UTC).");
+
+    // Start analytics background worker
+    startAnalyticsWorker();
   });
 
   server.on("error", (err) => {
@@ -74,6 +83,22 @@ function startServer(port, attempt = 0) {
   // MongoDB disconnect hooks are registered inside connectDB().
   async function shutdown(signal) {
     logger.info(`${signal} received — shutting down Express…`);
+    await stopAnalyticsWorker();
+    
+    // Close websockets
+    const { getIO } = await import("./websocket.js");
+    try {
+      getIO().close();
+    } catch(e) {}
+
+    // Close Redis
+    const { redisClient, redisPubClient, redisSubClient } = await import("./config/redis.js");
+    try {
+      await redisClient.quit();
+      await redisPubClient.quit();
+      await redisSubClient.quit();
+    } catch(e) {}
+
     server.close(() => {
       logger.info("HTTP server closed. Bye 👋");
       process.exit(0);

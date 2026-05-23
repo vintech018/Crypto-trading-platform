@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { api, ApiResponse } from '@/lib/apiClient'
 import { useMarketStore } from '@/state/marketStore'
 import {
-    X, RefreshCw, TrendingUp, TrendingDown,
-    Clock, Wallet, ArrowUpRight, ArrowDownRight
+     RefreshCw, TrendingUp,
+     Wallet, ArrowUpRight, ArrowDownRight
 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -96,6 +96,7 @@ export function OpenOrders() {
         } finally {
             setLoading(false)
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [tradeSyncId])
 
     useEffect(() => { load() }, [load])

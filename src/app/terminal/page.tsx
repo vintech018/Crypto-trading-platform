@@ -106,7 +106,7 @@ export default function TerminalPage() {
         }, 350)
         const doneTimer = setTimeout(() => setLoadingDone(true), 1600)
         return () => { clearInterval(msgTimer); clearTimeout(doneTimer) }
-    }, [])
+    }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -123,9 +123,11 @@ export default function TerminalPage() {
                 case 'r': setActivePanel('orders'); break
                 case 'h': setActivePanel('history'); break
                 case 'f':
-                    document.fullscreenElement
-                        ? document.exitFullscreen()
-                        : document.documentElement.requestFullscreen()
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen()
+                    } else {
+                        document.documentElement.requestFullscreen()
+                    }
                     break
             }
         }

@@ -1,0 +1,173 @@
+// =============================================================================
+// schema.prisma — SOLIDUS Analytics Layer (PostgreSQL)
+//
+// ⚠️  ARCHITECTURE NOTE:
+//     MongoDB Atlas is the PRIMARY database and source of truth.
+//     PostgreSQL is a SECONDARY, isolated analytics layer only.
+//
+//     These models have NO relationship to MongoDB Mongoose schemas.
+//     They exist solely to support analytics dashboards and audit trails.
+//     All writes to PostgreSQL are NON-BLOCKING (fire-and-forget).
+//     PostgreSQL failure NEVER affects core trading operations.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// TradeAnalytics
+//
+// Populated after a successful MongoDB trade write (BUY or SELL).
+// Mirrors a minimal subset of trade data — NOT the full MongoDB Trade doc.
+// Used for analytics APIs: /analytics/pnl, /analytics/monthly, /analytics/top-assets
+// ---------------------------------------------------------------------------
+model TradeAnalytics {
+  id        String   @id @default(cuid())
+  userId    String
+  tradeId   String
+  asset     String
+  tradeType String   // "BUY" | "SELL"
+  amount    Float    // totalValue in USD
+  pnl       Float    // realisedPnL (0 for BUY trades)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, asset])
+  @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// AuditLog
+//
+// General-purpose immutable audit trail for admin/compliance review.
+// Populated at auth events, trade events, wallet events (non-blocking).
+// ---------------------------------------------------------------------------
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // e.g. "TRADE_BUY", "TRADE_SELL", "LOGIN", "LOGOUT"
+  metadata  String   // JSON-stringified additional context
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, action])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// PortfolioSnapshot
+//
+// Captures end-of-day portfolio value for charting growth over time.
+// ---------------------------------------------------------------------------
+model PortfolioSnapshot {
+  id                    String   @id @default(cuid())
+  userId                String
+  date                  DateTime
+  totalValue            Float
+  walletBalance         Float
+  holdingsValue         Float
+  unrealisedPnL         Float
+  realisedPnLCumulative Float    @default(0)
+  createdAt             DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([userId, date])
+}
+
+// ---------------------------------------------------------------------------
+// DailyPnL
+//
+// Aggregated daily realized P&L and trading volume.
+// ---------------------------------------------------------------------------
+model DailyPnL {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime
+  realisedPnL Float    @default(0)
+  tradeCount  Int      @default(0)
+  buyVolume   Float    @default(0)
+  sellVolume  Float    @default(0)
+  winCount    Int      @default(0)
+  lossCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([userId, date])
+}
+
+// ---------------------------------------------------------------------------
+// AssetPerformance
+//
+// Lifetime performance metrics for a specific asset.
+// ---------------------------------------------------------------------------
+model AssetPerformance {
+  id           String   @id @default(cuid())
+  userId       String
+  asset        String
+  totalBought  Float    @default(0)
+  totalSold    Float    @default(0)
+  buyCount     Int      @default(0)
+  sellCount    Int      @default(0)
+  realisedPnL  Float    @default(0)
+  avgBuyPrice  Float    @default(0)
+  avgSellPrice Float    @default(0)
+  lastTradeAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, asset])
+  @@index([userId])
+  @@index([userId, asset])
+}
+
+// ---------------------------------------------------------------------------
+// TradingStreak
+//
+// Tracks user's current and all-time best/worst win/loss streaks.
+// ---------------------------------------------------------------------------
+model TradingStreak {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  currentStreak     Int      @default(0)
+  currentStreakType String   @default("NONE")
+  bestWinStreak     Int      @default(0)
+  worstLossStreak   Int      @default(0)
+  totalWins         Int      @default(0)
+  totalLosses       Int      @default(0)
+  totalTrades       Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// MonthlyPerformance
+//
+// Monthly aggregated performance.
+// ---------------------------------------------------------------------------
+model MonthlyPerformance {
+  id          String   @id @default(cuid())
+  userId      String
+  month       String   // Format: YYYY-MM
+  realisedPnL Float    @default(0)
+  tradeCount  Int      @default(0)
+  buyVolume   Float    @default(0)
+  sellVolume  Float    @default(0)
+  winCount    Int      @default(0)
+  lossCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, month])
+  @@index([userId])
+  @@index([userId, month])
+}

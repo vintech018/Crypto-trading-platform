@@ -29,7 +29,7 @@ import { blacklist } from "../utils/tokenBlacklist.js";
  *   401 → no token at all
  *   403 → token present but invalid / expired / blacklisted
  */
-export function authenticate(req, _res, next) {
+export async function authenticate(req, _res, next) {
   // ── 1. Extract token (Bearer header takes priority over cookie) ──
   let token = null;
 
@@ -45,8 +45,8 @@ export function authenticate(req, _res, next) {
   }
 
   // ── 2. Blacklist check (O(1) Map lookup) ──────────────────────────
-  // Run before jwt.verify() — no point doing crypto on a revoked token.
-  if (blacklist.has(token)) {
+  const isBlacklisted = await blacklist.has(token);
+  if (isBlacklisted) {
     return next(new AppError("This session has been logged out. Please log in again.", 403));
   }
 

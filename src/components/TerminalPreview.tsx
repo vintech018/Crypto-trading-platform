@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { LineChart, LayoutDashboard, Wallet, Activity, ArrowUpRight, ArrowDownRight, TrendingUp, TrendingDown, CheckCircle2, Loader2 } from "lucide-react";
+import { LineChart, LayoutDashboard, Wallet, Activity, ArrowUpRight, ArrowDownRight, TrendingUp, CheckCircle2, Loader2 } from "lucide-react";
 
 const TIMEFRAMES = ["1m", "5m", "15m", "1H", "4H", "1D"] as const;
 type Timeframe = typeof TIMEFRAMES[number];

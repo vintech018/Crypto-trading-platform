@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useMarketStore } from '@/state/marketStore'
+import Image from 'next/image'
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT']
 
@@ -46,18 +47,19 @@ function TickerItem({ symbol }: { symbol: string }) {
         const t = setTimeout(() => el.classList.remove(cls), 500)
         prev.current = tick.price
         return () => clearTimeout(t)
-    }, [tick?.price])
+    }, [tick, tick?.price])
 
     const isPositive = (tick?.changePct24h ?? 0) >= 0
 
     return (
         <div className="flex items-center gap-2 px-4 py-2 border-r border-white/5 shrink-0 hover:bg-white/[0.03] transition-colors cursor-default">
             {/* Coin logo */}
-            <img
+            <Image
                 src={LOGOS[symbol]}
                 alt={LABELS[symbol]}
                 width={16}
                 height={16}
+                unoptimized
                 className="w-4 h-4 rounded-full opacity-90 shrink-0"
                 style={{ imageRendering: 'auto' }}
                 onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}

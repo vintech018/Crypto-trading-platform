@@ -8,8 +8,6 @@ import { useRouter } from 'next/navigation'
 //  Backend URL — used for API calls and OAuth redirects
 // ============================================================
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5050'
-const APPLE_SERVICE_ID = 'com.yourapp.service'
-const APPLE_REDIRECT_URI = 'https://yourapp.com/auth/apple/callback'
 // ============================================================
 
 /* ── Scoped styles ── */
@@ -428,7 +426,7 @@ const STEP_URLS: Record<string, string[]> = {
 /* ────────────────────────────────────────────────
    OAuth Flow Modal
 ──────────────────────────────────────────────── */
-function OAuthModal({ provider, onClose, onSuccess }: { provider: string, onClose: () => void, onSuccess: (acc: any) => void }) {
+function OAuthModal({ provider, onClose, onSuccess }: { provider: string, onClose: () => void, onSuccess: (acc: unknown) => void }) {
     const [step, setStep] = useState(0)
     const [selected, setSelected] = useState<number | null>(null)
     const accounts = MOCK_ACCOUNTS[provider]
@@ -477,7 +475,7 @@ function OAuthModal({ provider, onClose, onSuccess }: { provider: string, onClos
                             {provider === 'google' ? 'Google' : 'Apple'} Sign In
                         </div>
                         <div className="s-step-title">Choose an account</div>
-                        <div className="s-step-sub">Select the account you'd like to use to continue to Solidus.</div>
+                        <div className="s-step-sub">Select the account you&apos;d like to use to continue to Solidus.</div>
 
                         {accounts.map((acc, i) => (
                             <div key={i} className={`s-account ${selected === i ? 'selected' : ''}`} onClick={() => setSelected(i)}>
@@ -503,13 +501,13 @@ function OAuthModal({ provider, onClose, onSuccess }: { provider: string, onClos
                 {step === 1 && (
                     <div className="s-step">
                         <div className="s-step-title">Granting access…</div>
-                        <div className="s-step-sub">Redirecting through {provider === 'google' ? 'Google' : 'Apple'}'s consent screen.</div>
+                        <div className="s-step-sub">Redirecting through {provider === 'google' ? 'Google' : 'Apple'}&apos;s consent screen.</div>
                         <div className="s-spin-wrap">
                             <div className="s-spinner" />
                             <div className="s-spin-label">Waiting for authorization…</div>
                         </div>
                         <div className="s-code">
-                            <div><span className="c-comment">// Real code — open OAuth popup:</span></div>
+                            <div><span className="c-comment">{`/* Real code — open OAuth popup: */`}</span></div>
                             <div><span className="c-key">window</span>.open(</div>
                             <div style={{ paddingLeft: '16px' }}><span className="c-str">`https://accounts.google.com/o/oauth2/auth`</span></div>
                             <div style={{ paddingLeft: '16px' }}><span className="c-key">+</span> <span className="c-str">`?client_id=<span className="c-warn">{'{GOOGLE_CLIENT_ID}'}</span>`</span></div>
@@ -530,7 +528,7 @@ function OAuthModal({ provider, onClose, onSuccess }: { provider: string, onClos
                             <div className="s-spin-label">POST /auth/{provider}/callback…</div>
                         </div>
                         <div className="s-code">
-                            <div><span className="c-comment">// Your SERVER does this (secret stays safe):</span></div>
+                            <div><span className="c-comment">{`/* Your SERVER does this (secret stays safe): */`}</span></div>
                             <div><span className="c-key">POST</span> <span className="c-str">https://oauth2.googleapis.com/token</span></div>
                             <div><span className="c-key">client_id    :</span> <span className="c-str">YOUR_CLIENT_ID</span></div>
                             <div><span className="c-key">client_secret:</span> <span className="c-warn">YOUR_SECRET ← server-side only</span></div>
@@ -561,11 +559,11 @@ function OAuthModal({ provider, onClose, onSuccess }: { provider: string, onClos
                         </div>
 
                         <div className="s-code">
-                            <div><span className="c-comment">// Token payload you'll receive:</span></div>
-                            <div><span className="c-key">access_token :</span> <span className="c-val">"ya29.a0AfH6SMBx..."</span></div>
-                            <div><span className="c-key">id_token     :</span> <span className="c-val">"eyJhbGciOiJSUzI1..."</span></div>
-                            <div><span className="c-key">user.email   :</span> <span className="c-str">"{accounts[selected].email}"</span></div>
-                            <div><span className="c-key">user.name    :</span> <span className="c-str">"{accounts[selected].name}"</span></div>
+                            <div><span className="c-comment">{`/* Token payload you'll receive: */`}</span></div>
+                            <div><span className="c-key">access_token :</span> <span className="c-val">&quot;ya29.a0AfH6SMBx...&quot;</span></div>
+                            <div><span className="c-key">id_token     :</span> <span className="c-val">&quot;eyJhbGciOiJSUzI1...&quot;</span></div>
+                            <div><span className="c-key">user.email   :</span> <span className="c-str">&quot;{accounts[selected].email}&quot;</span></div>
+                            <div><span className="c-key">user.name    :</span> <span className="c-str">&quot;{accounts[selected].name}&quot;</span></div>
                         </div>
 
                         <button className="s-btn" style={{ marginTop: '16px' }} onClick={() => onSuccess(accounts[selected])}>
@@ -586,7 +584,6 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
     const [tab, setTab] = useState<'login' | 'signup'>(initialTab)
     const [modal, setModal] = useState<string | null>(null)
     const [toast, setToast] = useState<{ msg: string, type: string } | null>(null)
-    const [loggedUser, setLoggedUser] = useState<any>(null)
 
     // Helper for redirection — use hard redirect to ensure cookies are seen by middleware
     const navigateNext = () => {
@@ -775,7 +772,7 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
                             <button className="s-social" onClick={() => { window.location.href = `${BACKEND_URL}/api/auth/google?mode=login` }}><GIcon /> Continue with Google</button>
                             <button className="s-social" onClick={() => setModal('apple')}><AIcon /> Continue with Apple</button>
                             <div className="s-footer">
-                                Don't have an account?{' '}
+                                Don&apos;t have an account?{' '}
                                 <button className="s-lnk" onClick={() => setTab('signup')}>Sign Up</button>
                             </div>
                         </>
@@ -852,9 +849,9 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
                     <OAuthModal
                         provider={modal}
                         onClose={() => setModal(null)}
-                        onSuccess={user => {
+                        onSuccess={() => {
                             setModal(null)
-                            setLoggedUser(user)
+
                             fire('Authenticated via ' + (modal === 'google' ? 'Google' : 'Apple') + '!')
                             setTimeout(() => router.push('/dashboard'), 1500)
                         }}

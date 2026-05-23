@@ -3,6 +3,14 @@
 import { useEffect, useState } from 'react'
 import { useMarketStore } from '@/state/marketStore'
 import { Bell, Plus, Trash2 } from 'lucide-react'
+
+interface Alert {
+    _id: string
+    type: string
+    message: string
+    createdAt: string
+}
+
 import { api } from '@/lib/apiClient'
 
 const SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT']
@@ -13,7 +21,7 @@ export function AlertsPanel() {
     const removeAlert = useMarketStore(s => s.removeAlert)
     const prices = useMarketStore(s => s.prices)
     const tradeSyncId = useMarketStore(s => s.tradeSyncId)
-    const [backendAlerts, setBackendAlerts] = useState<any[]>([])
+    const [backendAlerts, setBackendAlerts] = useState<Alert[]>([])
 
     const [sym, setSym] = useState('BTCUSDT')
     const [price, setPrice] = useState('')
@@ -34,9 +42,15 @@ export function AlertsPanel() {
 
     // Load backend alerts
     useEffect(() => {
-        api.get('/api/alerts')
-            .then((res: any) => setBackendAlerts(res.data?.alerts ?? []))
-            .catch(() => { })
+        const fetchAlerts = async () => {
+            try {
+                const res = await api.get<{ data?: { alerts?: Alert[] }; alerts?: Alert[] }>('/api/alerts')
+                setBackendAlerts(res.data?.alerts ?? res.alerts ?? [])
+            } catch {
+                // silently ignore — alerts are non-critical
+            }
+        }
+        fetchAlerts()
     }, [tradeSyncId])
 
     return (

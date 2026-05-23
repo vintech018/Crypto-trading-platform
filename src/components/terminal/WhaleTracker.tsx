@@ -16,10 +16,11 @@ interface WhaleAlert {
 
 const EXCHANGES = ['Binance', 'Coinbase', 'OKX', 'Bybit', 'Kraken']
 
-function generateWhaleAlert(prices: Record<string, any>): WhaleAlert {
+function generateWhaleAlert(prices: Record<string, unknown>): WhaleAlert {
     const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT']
     const sym = symbols[Math.floor(Math.random() * symbols.length)]
-    const price = prices[sym]?.price ?? 45000
+    const tick = prices[sym] as { price?: number } | undefined
+    const price = tick?.price ?? 45000
     const usdValue = 500000 + Math.random() * 5000000
     const amount = usdValue / price
     return {
