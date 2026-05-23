@@ -5,14 +5,17 @@
 ![SOLIDUS Banner](https://img.shields.io/badge/SOLIDUS-Crypto%20Trading%20Platform-white?style=for-the-badge&labelColor=000000)
 
 [![Node.js](https://img.shields.io/badge/Node.js-22-339933?style=flat-square&logo=node.js)](https://nodejs.org)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=flat-square&logo=mongodb)](https://www.mongodb.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Analytics-4169E1?style=flat-square&logo=postgresql)](https://www.postgresql.org)
+[![Redis](https://img.shields.io/badge/Redis-Pub%2FSub-DC382D?style=flat-square&logo=redis)](https://redis.io)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org)
+[![Jest](https://img.shields.io/badge/Tests-17%20passing-C21325?style=flat-square&logo=jest)](https://jestjs.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
 
-**Production-grade, full-stack crypto trading simulation platform with real-time market data, a custom matching engine, double-entry ledger accounting, and financial-precision arithmetic.**
+**Production-grade, full-stack crypto trading simulation platform with real-time market data, a custom matching engine, double-entry ledger accounting, analytics pipeline, and financial-precision arithmetic.**
 
-[Features](#-features) · [Architecture](#-architecture) · [API Reference](#-api-reference) · [Setup](#-setup) · [System Design](#-system-design)
+[Features](#-features) · [Architecture](#-architecture) · [API Reference](#-api-reference) · [Setup](#-setup) · [Testing](#-testing) · [System Design](#-system-design)
 
 </div>
 
@@ -25,6 +28,7 @@
 - **Limit Order Book** — Price-time-priority matching engine with partial fills
 - **Multi-coin Support** — BTC, ETH, SOL, BNB, XRP, ADA, DOGE, AVAX, MATIC, DOT
 - **Self-match prevention** — Users cannot match against their own orders
+- **Risk Engine** — Validates balance sufficiency, rejects naked shorts, enforces position limits
 
 ### Financial Precision
 - **BigInt Decimal Library** — Custom `decimal.js` utility eliminates all IEEE-754 float errors (satoshi-level: 10⁸ precision)
@@ -35,25 +39,45 @@
 ### Portfolio & Reporting
 - **Cost-Basis Tracking** — `avgBuyPrice` captured at trade execution time (not derived retroactively)
 - **Pre-computed Realised P/L** — Stored on each SELL trade: `(sellPrice - avgBuyPrice) × quantity`
-- **Live Unrealised P/L** — `currentPrice × qty − totalCost`
+- **Live Unrealised P/L** — `currentPrice × qty − totalCost`, updated in real-time via Binance WebSocket
 - **OHLC Candles** — Aggregated from real trade executions across 6 intervals (1m/5m/15m/1h/4h/1d)
 - **Trade History** — Filterable by coin, type, and date range
+- **Portfolio Snapshots** — Daily automated snapshots via cron job (midnight UTC)
+
+### Analytics Pipeline (PostgreSQL Sidecar)
+- **BullMQ Durable Queue** — Trade events replicated to background analytics worker
+- **PostgreSQL/Prisma Layer** — Dedicated analytics database for aggregations
+- **Daily P&L Tracking** — Automated daily profit/loss aggregation
+- **Asset Performance** — Per-coin performance metrics and breakdowns
+- **Monthly Reports** — Monthly performance summaries with trend analysis
+- **Trading Streaks** — Consecutive profitable trade tracking
 
 ### Security & Auth
+- **Dual Auth Flow** — Email/password login + Google OAuth 2.0 (Passport.js)
 - **JWT Access + Refresh Tokens** — Separate secrets; 15-min access, 7-day refresh
-- **Token Blacklist** — O(1) in-memory Map for immediate logout invalidation
+- **httpOnly Cookies** — `solidus_access`, `solidus_refresh`, `solidus_authed` with environment-aware `Secure`/`SameSite` flags
+- **Token Blacklist** — In-memory Map (dev) / Redis-backed (prod) for immediate logout invalidation
 - **Password Complexity Validation** — Regex-enforced on signup (uppercase, lowercase, number, special char)
-- **Helmet** — 11 HTTP security headers; CSP, HSTS, X-Frame-Options, CORS
+- **Helmet** — 11 HTTP security headers; HSTS, X-Frame-Options, CORS
+- **Rate Limiting** — Auth endpoints rate-limited with Redis store (prod) / memory (dev)
+- **Avatar Upload** — Cloudinary-backed profile picture upload with Multer validation (MIME type, file size)
 
-### Real-Time
+### Real-Time Data
 - **Binance WebSocket Streams** — Live ticker, order book depth, and trade feed (zero-latency)
+- **Socket.IO Backend** — Real-time trade notifications, portfolio updates, price broadcasts
+- **Redis Pub/Sub Adapter** — Horizontal WebSocket scaling across multiple server instances
 - **Auto-reconnect** — Exponential backoff; symbol-switch preserves ticker stream
+- **Rate Limiting** — 120 events/min per socket; MAX 20 concurrent subscriptions
+- **Mixed Content Protection** — Automatic HTTP→HTTPS protocol upgrade for WebSocket URLs
 
 ### UI Terminal
 - **Professional Trading Interface** — Dark-mode, Bloomberg-style terminal layout
 - **Panels** — Chart, Order Book, Trades Feed, Open Orders, Trade History, Portfolio, AI Insights, Whale Tracker, On-Chain, Alerts
 - **Keyboard Shortcuts** — `O` orderbook, `P` portfolio, `R` orders, `H` history, `F` fullscreen
 - **30-fps Price Flash** — Green/red price animation on live tick changes
+- **Hub Dashboard** — Community leaderboard, live price strips, portfolio overview
+- **Analytics Dashboard** — Equity curves, asset allocation, monthly breakdown charts
+- **Profile Page** — Avatar upload, login history, account management
 
 ---
 
@@ -63,7 +87,7 @@
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              CLIENT (Browser)                               │
 │                                                                             │
-│   Next.js 15 App Router  ·  TypeScript  ·  Tailwind CSS                    │
+│   Next.js 14 App Router  ·  TypeScript  ·  Tailwind CSS                    │
 │                                                                             │
 │  ┌──────────────────┐   ┌───────────────────┐   ┌──────────────────────┐  │
 │  │  Terminal Page   │   │  Hub / Dashboard  │   │  Auth Pages          │  │
@@ -73,45 +97,54 @@
 │  ┌────────▼──────────────────────▼───────────────────────────▼───────────┐ │
 │  │                         Zustand Store (marketStore)                   │ │
 │  │  prices · orderBook · recentTrades · holdings · walletBalance         │ │
-│  └──────────┬────────────────────────────────────────────────────────────┘ │
-│             │  REST (apiClient.ts)              WebSocket (binanceSocket.ts)│
-└─────────────┼───────────────────────────────────────────────────────────── ┘
-              │ HTTP                              wss://stream.binance.com
-              ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                          BACKEND (Express.js / Node 22)                     │
-│                                                                             │
-│   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌───────────┐  │
-│   │  /auth   │  │ /trade   │  │ /orders  │  │ /wallet  │  │ /reports  │  │
-│   └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘  └─────┬─────┘  │
-│        │              │              │              │               │        │
-│   ┌────▼──────────────▼──────────────▼──────────────▼───────────────▼────┐ │
-│   │                         Service Layer                                 │ │
-│   │   auth.service   trade.service   order.service  wallet.service        │ │
-│   │   portfolio.service   report.service   ohlc.service   price.service   │ │
-│   └────────────────────────────┬──────────────────────────────────────────┘ │
-│                                │  decimal.js (BigInt arithmetic)            │
-│   ┌────────────────────────────▼──────────────────────────────────────────┐ │
-│   │                     Matching Engine (order.service)                   │ │
-│   │   Price-Time Priority  ·  Partial Fills  ·  Double Settlement         │ │
-│   │   Self-match Prevention  ·  OHLC candle update on every fill          │ │
-│   └────────────────────────────┬──────────────────────────────────────────┘ │
-└────────────────────────────────┼────────────────────────────────────────────┘
-                                 │ Mongoose ODM
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         MongoDB Atlas (M0 / M2+)                            │
-│                                                                             │
-│   Users   Wallets   Trades   Holdings   Ledger   Orders   OHLC   Prices    │
-│                                                                             │
-│   ┌──────────────────────────────────────────────────────────────────────┐ │
-│   │  Compound Indexes for matching engine:                                │ │
-│   │  { coin, type, status, price: -1, createdAt: 1 }  (BUY book)        │ │
-│   │  { coin, type, status, price:  1, createdAt: 1 }  (SELL book)        │ │
-│   │  { userId, createdAt: -1 }  (trade history)                           │ │
-│   │  { coin, interval, openTime: -1 }  (OHLC candles) — unique           │ │
-│   └──────────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────────┘
+│  └──┬──────────────────────────────────────────────────────────────┬─────┘ │
+│     │  REST (apiClient.ts)        Socket.IO           WebSocket     │      │
+└─────┼────────────────────────────────┼──────────────────────────────┼──────┘
+      │ HTTP                           │ ws://                        │ wss://
+      ▼                                ▼                              ▼
+┌─────────────────────────────────────────┐          wss://stream.binance.com
+│       BACKEND (Express.js / Node 22)    │
+│                                         │
+│  ┌────────┐ ┌────────┐ ┌────────────┐  │
+│  │ /auth  │ │ /trade │ │ /analytics │  │
+│  │ /user  │ │ /orders│ │ /upload    │  │
+│  │ /wallet│ │/reports│ │ /system    │  │
+│  └───┬────┘ └───┬────┘ └─────┬──────┘  │
+│      └──────────┼────────────┘          │
+│  ┌──────────────▼──────────────────┐    │
+│  │        Service Layer            │    │
+│  │  auth · trade · order · wallet  │    │
+│  │  portfolio · report · ohlc      │    │
+│  │  price · analytics · upload     │    │
+│  └──────────┬──────────────────────┘    │
+│  ┌──────────▼──────────────────────┐    │
+│  │     Matching Engine             │    │
+│  │  Price-Time Priority · Partial  │    │
+│  │  Fills · Double Settlement      │    │
+│  └──────────┬──────────────────────┘    │
+│             │                           │
+│  ┌──────────▼────┐  ┌──────────────┐   │
+│  │  Socket.IO    │  │   BullMQ     │   │
+│  │  (Redis PubSub│  │  (Analytics  │   │
+│  │   Adapter)    │  │   Worker)    │   │
+│  └──────────┬────┘  └──────┬───────┘   │
+└─────────────┼──────────────┼───────────┘
+              │              │
+    ┌─────────▼────┐  ┌──────▼──────────┐
+    │    Redis     │  │   PostgreSQL    │
+    │  • Pub/Sub   │  │  (Analytics     │
+    │  • Tokens    │  │   Sidecar)      │
+    │  • Cache     │  │  Prisma ORM     │
+    │  • Sessions  │  └─────────────────┘
+    └──────┬───────┘
+           │
+    ┌──────▼──────────────────────────┐
+    │    MongoDB Atlas (M0 / M2+)     │
+    │                                 │
+    │  Users  Wallets  Trades         │
+    │  Holdings  Ledger  Orders       │
+    │  OHLC  Prices                   │
+    └─────────────────────────────────┘
 ```
 
 ### Data Flow: Trade Execution → DB → UI
@@ -131,10 +164,13 @@ trade.service.js → executeBuy()
   4. Insert trade record (cost basis)       ← MongoDB write (Trade)
   5. Insert 2x ledger entries               ← MongoDB write (Ledger ×2)
   6. Update OHLC candles (6 intervals)      ← MongoDB upsert (OHLC ×6)
+  7. Emit TRADE_REPLICATION to BullMQ       ← Analytics pipeline
   All above = ATOMIC (session if M2+, sequential-safe on M0)
       │
       ▼
 Response: { trade, walletBalance }
+      │
+      ├──→ Socket.IO emitTradeUpdate()      ← Real-time push to all clients
       │
       ▼
 marketStore.addHoldingFromTrade()  ← Optimistic UI update
@@ -148,11 +184,11 @@ UI reflects new balance + holding instantly
 
 ## 🗄 Database Schema
 
-### Collections Overview
+### MongoDB — Primary Data Store
 
 | Collection | Documents | Key Fields |
 |---|---|---|
-| `users` | One per account | `email`, `passwordHash`, `name` |
+| `users` | One per account | `email`, `passwordHash`, `name`, `profilePicture`, `loginHistory[]` |
 | `wallets` | One per user | `balance` (cached from ledger) |
 | `trades` | One per execution | `coin`, `type`, `price`, `avgBuyPrice`, `realisedPnL` |
 | `holdings` | One per (user, coin) | `quantity`, `avgBuyPrice`, `totalCost` |
@@ -160,6 +196,17 @@ UI reflects new balance + holding instantly
 | `orders` | One per limit order | `price`, `remainingQty`, `fills[]`, `status` |
 | `ohlcs` | One per (coin, interval, bucket) | `o`, `h`, `l`, `c`, `volume` |
 | `prices` | Snapshots | `coin`, `price`, `timestamp` |
+
+### PostgreSQL — Analytics Sidecar (Prisma)
+
+| Table | Purpose |
+|---|---|
+| `trade_analytics` | Replicated trade data for fast aggregations |
+| `daily_pnl` | Daily profit/loss per user |
+| `asset_performance` | Per-coin performance metrics |
+| `monthly_performance` | Monthly summaries with equity snapshots |
+| `trading_streaks` | Consecutive profitable trade tracking |
+| `portfolio_snapshots` | Daily automated portfolio state snapshots |
 
 ### Ledger Double-Entry Design
 
@@ -182,17 +229,19 @@ balance = Σ(DEPOSIT) + Σ(SELL/USD) − Σ(BUY/USD) − Σ(WITHDRAW) − Σ(FEE
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
 | `POST` | `/api/auth/signup` | — | Register with password complexity validation |
-| `POST` | `/api/auth/login` | — | Login → access + refresh tokens |
-| `POST` | `/api/auth/logout` | ✅ | Blacklist access token |
+| `POST` | `/api/auth/login` | — | Login → access + refresh tokens + httpOnly cookies |
+| `POST` | `/api/auth/logout` | ✅ | Blacklist access token + clear cookies |
 | `POST` | `/api/auth/refresh` | — | Rotate refresh token → new access token |
-| `GET` | `/api/auth/me` | ✅ | Current user info |
+| `GET` | `/api/auth/me` | ✅ | Current user info with login history |
+| `GET` | `/api/auth/google` | — | Initiate Google OAuth 2.0 flow |
+| `GET` | `/api/auth/google/callback` | — | Google OAuth callback → issue tokens |
 
 ### Trading (Market Orders)
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `POST` | `/api/trade/buy` | ✅ | Market buy — instant execution |
-| `POST` | `/api/trade/sell` | ✅ | Market sell — instant execution |
+| `POST` | `/api/trade/buy` | ✅ | Market buy — instant execution with risk validation |
+| `POST` | `/api/trade/sell` | ✅ | Market sell — instant execution with P&L calculation |
 | `POST` | `/api/trade/deposit` | ✅ | Deposit funds (creates ledger entry) |
 
 ### Limit Orders & Matching Engine
@@ -222,21 +271,41 @@ balance = Σ(DEPOSIT) + Σ(SELL/USD) − Σ(BUY/USD) − Σ(WITHDRAW) − Σ(FEE
 | `GET` | `/api/user/portfolio` | ✅ | Holdings with live P/L from CoinGecko |
 | `GET` | `/api/reports` | ✅ | Full report: summary, monthly P&L, coin breakdown |
 
+### Analytics (PostgreSQL)
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/analytics/daily-pnl` | ✅ | Daily P&L history with date range filter |
+| `GET` | `/api/analytics/asset-performance` | ✅ | Per-coin performance breakdown |
+| `GET` | `/api/analytics/monthly` | ✅ | Monthly performance summaries |
+| `GET` | `/api/analytics/streaks` | ✅ | Trading streak data |
+| `GET` | `/api/analytics/overview` | ✅ | Combined analytics overview |
+
+### Upload & System
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `POST` | `/api/upload/avatar` | ✅ | Upload profile picture (Cloudinary, max 5MB) |
+| `GET` | `/api/system/queues` | ✅ | BullMQ queue statistics (admin) |
+
 ---
 
 ## 🚀 Setup
 
 ### Prerequisites
 
-- Node.js 18+
-- MongoDB Atlas account (free M0 tier works)
-- CoinGecko API key (free tier)
+- **Node.js** 18+ (22 recommended)
+- **MongoDB Atlas** account (free M0 tier works)
+- **Redis** (local or cloud — [Redis Cloud free tier](https://redis.com/try-free/))
+- **PostgreSQL** (local or cloud — [Neon free tier](https://neon.tech/) or [Supabase](https://supabase.com/))
+- **Cloudinary** account (free tier — for avatar uploads)
+- **Google Cloud Console** project (optional — for OAuth)
 
 ### 1. Clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/solidus.git
-cd solidus/Crypto-trading-platform
+git clone https://github.com/vintech018/Crypto-trading-platform.git
+cd Crypto-trading-platform
 ```
 
 ### 2. Backend Setup
@@ -247,21 +316,53 @@ npm install
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` with your credentials:
 ```env
+# Core
 PORT=5050
-MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/solidus
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+
+# MongoDB
+MONGO_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/solidus
+
+# PostgreSQL (Analytics)
+DATABASE_URL=postgresql://<user>:<pass>@<host>:5432/solidus_analytics
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT
 JWT_ACCESS_SECRET=your_access_secret_min_32_chars
 JWT_REFRESH_SECRET=your_refresh_secret_min_32_chars
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_EXPIRES_IN=7d
-COINGECKO_API_URL=https://api.coingecko.com/api/v3
-CORS_ORIGIN=http://localhost:3000
-NODE_ENV=development
+
+# Google OAuth (optional)
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_CALLBACK_URL=http://localhost:5050/api/auth/google/callback
+
+# Cloudinary (optional — for avatar uploads)
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# Stripe (optional — for payments)
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# CORS
+CORS_ORIGIN=http://localhost:3000,http://localhost:3002,http://localhost:5050
 ```
 
+Initialize the analytics database:
 ```bash
-npm run dev   # nodemon with ESM
+npx prisma generate
+npx prisma db push
+```
+
+Start the backend:
+```bash
+npm run dev   # nodemon with ESM — auto-restarts on file changes
 ```
 
 ### 3. Frontend Setup
@@ -269,10 +370,9 @@ npm run dev   # nodemon with ESM
 ```bash
 cd ..         # back to Crypto-trading-platform root
 npm install
-cp .env.example .env.local
 ```
 
-Edit `.env.local`:
+Create `.env.local`:
 ```env
 NEXT_PUBLIC_BACKEND_URL=http://localhost:5050
 ```
@@ -281,52 +381,55 @@ NEXT_PUBLIC_BACKEND_URL=http://localhost:5050
 npm run dev   # Next.js dev server on :3000
 ```
 
-### 4. Verify
+### 4. Run Both Together
 
 ```bash
-curl http://localhost:5050/health
-# → {"status":"ok"}
+npm run dev:all   # Runs frontend + backend concurrently
+```
 
-curl http://localhost:3000
-# → Hub landing page
+### 5. Verify
+
+```bash
+# Backend health
+curl http://localhost:5050/
+# → {"status":"ok","service":"SOLIDUS API","version":"1.0.0",...}
+
+# Frontend
+open http://localhost:3000
+# → Landing page with live crypto prices
 ```
 
 ---
 
-## 🐳 Docker (Optional)
+## 🧪 Testing
 
-```dockerfile
-# backend/Dockerfile
-FROM node:22-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --production
-COPY src/ src/
-EXPOSE 5050
-CMD ["node", "src/server.js"]
+### Integration Test Suite (Jest)
+
+The project includes a comprehensive integration test suite with **17 tests across 4 suites**:
+
+```bash
+cd backend
+npm test           # Run all tests
+npm run test:watch # Watch mode
+npm run test:coverage  # With coverage report
 ```
 
-```yaml
-# docker-compose.yml
-version: '3.9'
-services:
-  api:
-    build: ./backend
-    ports: ["5050:5050"]
-    env_file: ./backend/.env
-    restart: unless-stopped
+### Test Suites
 
-  web:
-    build: .
-    ports: ["3000:3000"]
-    env_file: .env.local
-    depends_on: [api]
-    restart: unless-stopped
-```
+| Suite | Tests | What It Validates |
+|---|---|---|
+| **Auth** (`auth.test.js`) | 6 | Signup, login, token refresh, logout, protected route access |
+| **Trade** (`trade.test.js`) | 5 | Deposits, BUY/SELL execution, insufficient balance rejection, naked short rejection |
+| **Analytics** (`analytics.test.js`) | 2 | BullMQ event enqueueing, queue statistics endpoint |
+| **Upload** (`upload.test.js`) | 4 | Avatar upload, MIME type validation, file size limits, Multer security |
 
----
+### Test Infrastructure
 
-## 🧪 Running Tests (Endpoint Smoke Test)
+- **MongoMemoryServer** — Isolated in-memory MongoDB instance per test run
+- **Global Mocks** — Cloudinary, Socket.IO, Prisma, BullMQ, Redis (no external calls)
+- **Automatic Cleanup** — Database wiped between tests; connections closed after
+
+### Quick Smoke Test (curl)
 
 ```bash
 # Create user, execute trades, verify audit
@@ -341,9 +444,53 @@ curl -sf -X POST http://localhost:5050/api/trade/buy \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"coin":"ETH","quantity":1,"price":3000}'
 
+# PORTFOLIO
+curl -sf http://localhost:5050/api/user/portfolio \
+  -H "Authorization: Bearer $TOKEN"
+
 # AUDIT (drift should be 0)
 curl -sf http://localhost:5050/api/wallet/audit \
   -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## 🐳 Docker (Optional)
+
+```dockerfile
+# backend/Dockerfile
+FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --production
+COPY prisma/ prisma/
+RUN npx prisma generate
+COPY src/ src/
+EXPOSE 5050
+CMD ["node", "src/server.js"]
+```
+
+```yaml
+# docker-compose.yml
+version: '3.9'
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  api:
+    build: ./backend
+    ports: ["5050:5050"]
+    env_file: ./backend/.env
+    depends_on: [redis]
+    restart: unless-stopped
+
+  web:
+    build: .
+    ports: ["3000:3000"]
+    env_file: .env.local
+    depends_on: [api]
+    restart: unless-stopped
 ```
 
 ---
@@ -354,8 +501,9 @@ curl -sf http://localhost:5050/api/wallet/audit \
 
 **Current (Single-node):**
 - In-process price cache (30s TTL, Map)
+- Redis for token store, pub/sub, rate limiting
 - Sequential matching per coin
-- Atlas M0 free tier
+- Atlas M0 free tier + Neon/Supabase PostgreSQL
 
 **Production Scale:**
 ```
@@ -372,26 +520,31 @@ curl -sf http://localhost:5050/api/wallet/audit \
               ▼                           ▼
          Redis Cluster              MongoDB Atlas
          (price cache,              (M10+ replica set,
-          sessions,                  sharded on userId)
-          rate limits)
+          token blacklist,           sharded on userId)
+          Socket.IO adapter,
+          BullMQ queues,          PostgreSQL
+          rate limits)             (analytics aggregations,
+                                    Prisma ORM)
 ```
 
-- **Redis** — shared price cache, session store, rate-limit counters
+- **Redis** — Socket.IO pub/sub adapter, token blacklist, refresh token store, rate-limit counters, BullMQ job queue
 - **MongoDB sharding** — shard key: `userId` (natural cardinality for wallet/holdings/ledger)
 - **Matching engine per coin** — one Node process per coin (BTC-engine, ETH-engine) to eliminate cross-coin lock contention
-- **WebSocket gateway** — dedicated service (Socket.io cluster with Redis adapter) for real-time order book updates
+- **WebSocket gateway** — Socket.IO cluster with Redis adapter for horizontal real-time scaling
+- **Analytics worker** — BullMQ background worker processes trade events asynchronously into PostgreSQL
 
-### Why MongoDB over PostgreSQL?
+### Why MongoDB + PostgreSQL (Hybrid)?
 
-| Factor | MongoDB | PostgreSQL |
+| Concern | MongoDB | PostgreSQL |
 |---|---|---|
-| **Schema flexibility** | Add `fills[]` array to orders without ALTER TABLE | Requires JOIN table + migration |
-| **Aggregation pipeline** | OHLC candle upserts in one `$set` pipeline stage | Complex `ON CONFLICT` + CTEs |
-| **Atlas M0** | Free tier with replica set, no operational overhead | Requires self-managed or paid PaaS |
-| **Horizontal scale** | Native sharding | Citus or Partitioning required |
-| **Atomic array push** | `$push` on `fills[]` in one operation | INSERT + UPDATE in a transaction |
+| **Core trading data** | ✅ Flexible schema, atomic `$push` on `fills[]`, Atlas M0 free | — |
+| **Analytics aggregations** | — | ✅ Prisma ORM, SQL aggregations, typed schemas |
+| **OHLC candle upserts** | ✅ One `$set` pipeline stage | Complex `ON CONFLICT` + CTEs |
+| **Time-series reports** | — | ✅ Window functions, GROUP BY month |
+| **Horizontal scale** | ✅ Native sharding | Citus or partitioning required |
+| **ACID guarantees** | ✅ Multi-doc transactions (M2+) | ✅ Native ACID |
 
-**Trade-off:** PostgreSQL's ACID guarantees and typed schemas are stronger for pure financial systems in production. A hybrid approach (Postgres for ledger + MongoDB for real-time market data) would be ideal at scale.
+**The hybrid approach gives the best of both:** MongoDB's flexibility for real-time trading, PostgreSQL's analytical power for reporting.
 
 ### Financial Consistency Guarantees
 
@@ -408,61 +561,110 @@ curl -sf http://localhost:5050/api/wallet/audit \
 ```
 Crypto-trading-platform/
 ├── backend/
+│   ├── prisma/
+│   │   └── schema.prisma           # PostgreSQL analytics schema
+│   ├── scripts/
+│   │   └── backfillAnalytics.js    # Backfill script for existing trades
+│   ├── tests/
+│   │   ├── setup/
+│   │   │   ├── jest.setup.js       # Global mocks (Cloudinary, Prisma, BullMQ, Redis)
+│   │   │   └── test-db.js          # MongoMemoryServer lifecycle
+│   │   ├── helpers/
+│   │   │   └── authHelper.js       # Test user creation + token helpers
+│   │   └── integration/
+│   │       ├── auth.test.js        # 6 auth flow tests
+│   │       ├── trade.test.js       # 5 trading engine tests
+│   │       ├── analytics.test.js   # 2 BullMQ queue tests
+│   │       └── upload.test.js      # 4 Multer security tests
 │   └── src/
-│       ├── config/          # env validation, DB connection (DNS-patched for Atlas)
-│       ├── controllers/     # HTTP handlers (thin — delegate to services)
-│       ├── middlewares/     # auth guard, error handler, rate limiter, XSS
-│       ├── models/          # Mongoose schemas (User, Wallet, Trade, Holding,
-│       │                    #   Ledger, Order, OHLC, Price)
-│       ├── routes/          # Express routers
-│       ├── services/        # Business logic
-│       │   ├── trade.service.js      # Market order execution + ledger
-│       │   ├── order.service.js      # Matching engine + limit orders
-│       │   ├── ohlc.service.js       # Candle aggregation
-│       │   ├── wallet.service.js     # Balance + audit + ledger history
-│       │   ├── portfolio.service.js  # Holdings + unrealised P/L
-│       │   ├── report.service.js     # Full financial report
-│       │   └── price.service.js      # CoinGecko + in-process cache + DB fallback
-│       └── utils/
-│           ├── decimal.js    # BigInt-based financial arithmetic (no float errors)
-│           ├── logger.js     # Structured JSON logger (Winston)
-│           ├── helpers.js    # AppError, sendSuccess
-│           └── constants.js  # SUPPORTED_COINS, COINGECKO_ID_MAP
+│       ├── analytics/              # PostgreSQL analytics layer
+│       │   ├── controllers/        # Analytics API handlers
+│       │   ├── routes/             # /api/analytics/* routes
+│       │   └── services/           # Emitter, read service, trade analytics
+│       ├── config/
+│       │   ├── env.js              # Environment validation (11 config groups)
+│       │   ├── passport.js         # Google OAuth + local JWT strategy
+│       │   └── redis.js            # Redis client (main, pub, sub)
+│       ├── controllers/            # HTTP handlers (thin — delegate to services)
+│       │   ├── auth.controller.js  # Signup, login, logout, refresh, Google OAuth
+│       │   ├── trade.controller.js # Buy, sell, deposit
+│       │   ├── upload.controller.js# Avatar upload via Cloudinary
+│       │   └── system.controller.js# Queue stats, health checks
+│       ├── jobs/
+│       │   ├── analyticsWorker.js  # BullMQ worker for trade replication
+│       │   └── portfolioSnapshot.job.js # Daily portfolio snapshot cron
+│       ├── middlewares/
+│       │   ├── auth.middleware.js   # JWT verification (Bearer + cookie)
+│       │   ├── rateLimit.middleware.js # Express rate limiter (Redis/memory)
+│       │   ├── upload.middleware.js # Multer config (5MB, MIME validation)
+│       │   └── validate.middleware.js # Request body validation
+│       ├── models/                 # Mongoose schemas
+│       ├── postgres/
+│       │   └── client.js           # Prisma client singleton
+│       ├── routes/                 # Express routers
+│       ├── services/               # Business logic
+│       │   ├── trade.service.js    # Market order execution + ledger
+│       │   ├── order.service.js    # Matching engine + limit orders
+│       │   ├── auth.service.js     # JWT signing, token rotation, Google auth
+│       │   └── ...                 # wallet, portfolio, report, ohlc, price
+│       ├── utils/
+│       │   ├── decimal.js          # BigInt-based financial arithmetic
+│       │   ├── logger.js           # Structured JSON logger (Pino)
+│       │   ├── refreshTokenStore.js# Redis-backed (prod) / Map (dev)
+│       │   ├── tokenBlacklist.js   # Redis-backed (prod) / Set (dev)
+│       │   ├── cloudinary.js       # Cloudinary SDK wrapper
+│       │   └── cache.js            # In-memory TTL cache
+│       ├── websocket.js            # Socket.IO server (Redis adapter, rate limiting)
+│       ├── app.js                  # Express app setup (middleware chain)
+│       └── server.js               # Boot sequence (DB → HTTP → WS → Cron)
 │
-└── src/                     # Next.js frontend
-    ├── app/                 # App router pages
-    │   ├── terminal/        # Trading terminal (main UI)
-    │   ├── hub/             # Portfolio dashboard
-    │   ├── login/ signup/   # Auth pages
-    │   └── dashboard/       # Analytics
-    ├── components/terminal/ # Panel components
-    │   ├── TradeExecution   # Market + limit order entry
-    │   ├── OrderBook        # Live Binance depth stream
-    │   ├── OpenOrders       # User's limit orders from backend
-    │   ├── TradeHistory     # Filterable backend trade history
-    │   ├── PortfolioPanel   # Holdings + P/L
-    │   ├── ChartPanel       # TradingView Lightweight Charts
-    │   └── ...12 more panels
-    ├── state/
-    │   └── marketStore.ts   # Zustand global store
-    ├── services/
-    │   └── binanceSocket.ts # WebSocket manager (ticker/depth/trades)
-    └── lib/
-        └── apiClient.ts     # Typed Axios wrapper + auth interceptors
+├── src/                            # Next.js 14 frontend
+│   ├── app/                        # App router pages
+│   │   ├── terminal/               # Trading terminal (main UI)
+│   │   ├── hub/                    # Community hub + portfolio dashboard
+│   │   │   └── analytics/          # Analytics charts page
+│   │   ├── dashboard/              # User dashboard
+│   │   │   └── profile/            # Profile settings + avatar upload
+│   │   ├── login/ signup/          # Auth pages
+│   │   ├── contact/                # Contact form
+│   │   └── reports/                # Financial reports
+│   ├── components/
+│   │   ├── terminal/               # 12+ trading terminal panels
+│   │   │   ├── TradeExecution.tsx   # Market + limit order entry
+│   │   │   ├── ChartPanel.tsx      # TradingView Lightweight Charts
+│   │   │   ├── PortfolioPanel.tsx   # Holdings + P/L + spot positions
+│   │   │   ├── AlertsPanel.tsx     # Price alerts + trade notifications
+│   │   │   └── ...                 # OrderBook, OpenOrders, TradeHistory, etc.
+│   │   ├── profile/
+│   │   │   └── AvatarUpload.tsx    # Cloudinary avatar upload component
+│   │   └── ui/                     # Reusable UI primitives
+│   ├── state/
+│   │   └── marketStore.ts          # Zustand global store (prices, portfolio, WS)
+│   ├── services/
+│   │   └── binanceSocket.ts        # Binance WebSocket manager (SSR-safe)
+│   └── lib/
+│       └── apiClient.ts            # Typed fetch wrapper + auth + auto-refresh
+│
+├── tests.md                        # Jest testing guide (beginner-friendly)
+├── run_entire.md                   # Full project run guide (beginner-friendly)
+└── next.config.mjs                 # Next.js config (image domains, build opts)
 ```
 
 ---
 
 ## 🔒 Security
 
-- **Helmet.js** — Content-Security-Policy, HSTS, X-Frame-Options, noSniff, referrer policy
-- **CORS** — whitelist-based origin validation; no wildcard in production
-- **JWT** — RS256-compatible (currently HS256); access tokens 15m, refresh 7d
-- **Token blacklist** — O(1) Map lookup before every verify(); Redis-backed in production
+- **Helmet.js** — HSTS, X-Frame-Options, noSniff, referrer policy (11 headers)
+- **CORS** — whitelist-based origin validation with credentials support; no wildcard in production
+- **JWT** — HS256 with separate access/refresh secrets; access tokens 15m, refresh 7d
+- **httpOnly Cookies** — `solidus_access`, `solidus_refresh` (httpOnly), `solidus_authed` (readable by Next.js middleware)
+- **Environment-aware cookie flags** — `Secure: true` + `SameSite: none` in production; `Secure: false` + `SameSite: lax` in development
+- **Token blacklist** — O(1) Map lookup (dev) / Redis `EXISTS` (prod) before every verify()
 - **bcrypt** — password hashing with salt rounds = 12
-- **XSS-clean** — strips script injection from body/query/params
-- **express-rate-limit** — auth endpoints rate-limited (login, signup, refresh)
+- **Multer validation** — Avatar uploads restricted to JPEG/PNG/WebP, max 5MB, MIME type verification
+- **express-rate-limit** — Auth endpoints rate-limited; Redis store in production
 - **Password policy** — min 8 chars, requires uppercase + lowercase + number + special character
+- **Trust proxy** — `app.set('trust proxy', 1)` for correct client IP behind load balancers
 
 ---
 
@@ -476,24 +678,32 @@ Crypto-trading-platform/
 | Ledger audit (full replay) | 50–200ms | MongoDB aggregation pipeline |
 | OHLC candle fetch (200 bars) | 30–80ms | Indexed on `{coin, interval, openTime}` |
 | Limit order placement | 300–600ms | + matching time if fills exist |
+| WebSocket tick update | <10ms | Binance stream → Zustand store |
+| Analytics event processing | <50ms | BullMQ worker → PostgreSQL write |
+| Avatar upload (Cloudinary) | 1–3s | Depends on file size and network |
 
 ---
 
 ## 🛣 Roadmap
 
-- [ ] **Redis** — shared price cache, rate-limit store
-- [ ] **WebSocket push** — order fill notifications (Socket.io)
-- [ ] **OHLC Chart Integration** — wire `/api/orders/candles` into ChartPanel
-- [ ] **Stop-Loss / Take-Profit** — triggered orders via price polling
-- [ ] **Tax Export** — realised P/L CSV export per fiscal year
-- [ ] **Docker Compose** — one-command dev stack
+- [x] **Redis** — Token blacklist, refresh token store, Socket.IO adapter, rate limiting
+- [x] **WebSocket push** — Socket.IO with Redis pub/sub adapter for real-time updates
+- [x] **Analytics pipeline** — BullMQ + PostgreSQL for trade analytics
+- [x] **Google OAuth** — Passport.js Google strategy
+- [x] **Avatar upload** — Cloudinary integration with Multer validation
+- [x] **Integration tests** — Jest + MongoMemoryServer (17 tests, 4 suites)
+- [x] **Portfolio snapshots** — Daily cron job for equity tracking
+- [ ] **OHLC Chart Integration** — Wire `/api/orders/candles` into ChartPanel
+- [ ] **Stop-Loss / Take-Profit** — Triggered orders via price polling
+- [ ] **Tax Export** — Realised P/L CSV export per fiscal year
 - [ ] **CI/CD** — GitHub Actions → Railway/Render auto-deploy
+- [ ] **E2E Tests** — Playwright browser tests for full user flows
 
 ---
 
 ## 👤 Author
 
-Built by **Vaibhav** as a portfolio/interview project demonstrating production-grade full-stack engineering across financial systems, real-time data, and scalable API design.
+Built by **Vaibhav** as a portfolio/interview project demonstrating production-grade full-stack engineering across financial systems, real-time data, analytics pipelines, and scalable API design.
 
 ---
 
