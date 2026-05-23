@@ -421,7 +421,7 @@ export default function BotsPage() {
       {modalState.show && (
         <CreateBotModal
           initialBotClass={modalState.type}
-          availableCapital={wallet?.balance || 0}
+          availableCapital={wallet?.balance ?? 50000}
           onClose={() => setModalState({ ...modalState, show: false })}
           onCreated={fetchData}
         />

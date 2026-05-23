@@ -66,6 +66,7 @@ export interface Bot {
 async function request<T>(url: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
     headers: { 'Content-Type': 'application/json' },
+    cache: 'no-store',
     ...opts,
   });
   if (!res.ok) {

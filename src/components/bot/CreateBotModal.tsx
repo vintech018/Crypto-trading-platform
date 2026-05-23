@@ -256,10 +256,15 @@ export function CreateBotModal({ onClose, onCreated, availableCapital = 50000, i
                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 font-mono font-bold">$</span>
                           <input
                             type="number"
+                            step="0.01"
                             max={maxAllowedCapital}
                             value={form.amount}
                             onChange={(e) => {
                               let val = e.target.value;
+                              if (val.includes('.')) {
+                                const [int, dec] = val.split('.');
+                                if (dec.length > 2) val = `${int}.${dec.slice(0, 2)}`;
+                              }
                               if (Number(val) > maxAllowedCapital) val = maxAllowedCapital.toString();
                               set('amount', val);
                             }}
@@ -350,10 +355,15 @@ export function CreateBotModal({ onClose, onCreated, availableCapital = 50000, i
                         </label>
                         <input
                           type="number"
+                          step="0.01"
                           max={maxAllowedCapital}
                           value={form.amount}
                           onChange={(e) => {
                             let val = e.target.value;
+                            if (val.includes('.')) {
+                              const [int, dec] = val.split('.');
+                              if (dec.length > 2) val = `${int}.${dec.slice(0, 2)}`;
+                            }
                             if (Number(val) > maxAllowedCapital) val = maxAllowedCapital.toString();
                             set('amount', val);
                           }}

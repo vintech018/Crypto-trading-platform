@@ -13,6 +13,7 @@ import { getBinanceManager } from '@/services/binanceSocket'
 import { useMarketStore } from '@/state/marketStore'
 import { api, type Bot as ApiBot } from '@/lib/api'
 import { getSocket } from '@/lib/socket'
+import { MarketDigestPanel } from '@/components/terminal/MarketDigestPanel'
 
 // ─── Sub-components ─────────────────────────────────────────
 
@@ -169,7 +170,7 @@ function MarketMovers() {
     )
 }
 
-function AIInsightCard() {
+function AIInsightCard({ onClick }: { onClick?: () => void }) {
     const prices = useMarketStore(s => s.prices)
     const btc = prices['BTCUSDT']
     const pct = btc?.changePct24h ?? 0
@@ -185,7 +186,7 @@ function AIInsightCard() {
     const confidence = direction === 'neutral' ? 62 : direction === 'bullish' ? 78 : 71
 
     return (
-        <div className="relative rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-white/[0.01] p-6 overflow-hidden">
+        <div onClick={onClick} className="relative rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-white/[0.01] p-6 overflow-hidden cursor-pointer hover:border-white/[0.15] hover:bg-gradient-to-br hover:from-white/[0.08] hover:to-white/[0.02] transition-all group">
             {/* Subtle animated gradient accent */}
             <div className="absolute top-0 right-0 w-32 h-32 pointer-events-none opacity-30"
                 style={{ background: `radial-gradient(circle at 80% 20%, ${direction === 'bullish' ? 'rgba(16,185,129,0.2)' : direction === 'bearish' ? 'rgba(239,68,68,0.2)' : 'rgba(234,179,8,0.2)'} 0%, transparent 70%)` }} />
@@ -237,6 +238,7 @@ export default function HubPage() {
 
     const [bots, setBots] = useState<ApiBot[]>([])
     const [botWallet, setBotWallet] = useState<{ balance: number } | null>(null)
+    const [isDigestOpen, setIsDigestOpen] = useState(false)
 
     // Start ticker WebSocket for live price data on hub page
     useEffect(() => {
@@ -257,11 +259,19 @@ export default function HubPage() {
 
         socket.on('bot:update', (updated: ApiBot) => {
             setBots(prev => prev.map(b => b.id === updated.id ? updated : b))
+            // Re-fetch wallet on every bot update so losses/gains reflect immediately
+            api.getWallet().then(setBotWallet).catch(() => {})
+        })
+
+        socket.on('bot:trade', () => {
+            // Trade closed — always pull fresh wallet balance
+            api.getWallet().then(setBotWallet).catch(() => {})
         })
 
         return () => {
             socket.off('bot:list')
             socket.off('bot:update')
+            socket.off('bot:trade')
         }
     }, [])
 
@@ -287,7 +297,7 @@ export default function HubPage() {
     const botPositionsCount = bots.filter(b => b.position !== null).length
     const totalPositionsCount = positions.length + botPositionsCount
 
-    const botCapital = bots.reduce((sum, b) => sum + (b.virtualBalance || b.amount), 0)
+    const botCapital = bots.reduce((sum, b) => sum + (b.virtualBalance ?? b.amount), 0)
     const baseEquity = botWallet ? (botWallet.balance + botCapital) : equity
     const totalEquity = baseEquity + totalUnrealizedPnl
     
@@ -440,7 +450,7 @@ export default function HubPage() {
                         className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10"
                     >
                         <MarketMovers />
-                        <AIInsightCard />
+                        <AIInsightCard onClick={() => setIsDigestOpen(true)} />
                     </motion.div>
 
 
@@ -484,6 +494,8 @@ export default function HubPage() {
                     </div>
                 </div>
             </div>
+            
+            <MarketDigestPanel isOpen={isDigestOpen} onClose={() => setIsDigestOpen(false)} />
         </>
     )
 }

@@ -1,8 +1,6 @@
 {
-  "/hub/page": "app/hub/page.js",
+  "/api/digest/route": "app/api/digest/route.js",
   "/page": "app/page.js",
-  "/terminal/page": "app/terminal/page.js",
-  "/pablo/page": "app/pablo/page.js",
   "/login/page": "app/login/page.js",
   "/bots/page": "app/bots/page.js"
 }
