@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "dev:api": "npm run dev --prefix backend",
+    "dev:api": "npm run dev --prefix backend_old",
     "dev:all": "concurrently -n \"API,UI\" -c \"cyan,magenta\" \"npm run dev:api\" \"npm run dev\""
   },
   "dependencies": {
