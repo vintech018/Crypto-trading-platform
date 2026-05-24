@@ -165,6 +165,7 @@ app.use(httpLogger);
 app.use("/static", express.static(path.join(__dirname, "../public")));
 
 // ─── Health Check ─────────────────────────────────────────────
+app.get("/", (_req, res) => res.json({ status: "ok" }));
 app.get("/health", (_req, res) => res.json({ status: "ok", type: "process" }));
 
 app.get("/ready", async (_req, res) => {

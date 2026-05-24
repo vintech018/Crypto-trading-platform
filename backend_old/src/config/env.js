@@ -10,6 +10,7 @@
 // We'll use console to format a checklist before exiting.
 
 const envConfig = process.env;
+envConfig.PORT = envConfig.PORT || "5050";
 
 // Helper to validate URLs
 function isValidUrl(string) {
@@ -108,7 +109,7 @@ export const env = Object.freeze({
   FRONTEND_URL: envConfig.FRONTEND_URL,
   CORS_ORIGIN: envConfig.CORS_ORIGIN || envConfig.FRONTEND_URL,
   LOG_LEVEL: envConfig.LOG_LEVEL || "info",
-  BACKEND_URL: envConfig.NEXT_PUBLIC_BACKEND_URL || envConfig.BACKEND_URL || `http://localhost:${envConfig.PORT}`,
+  BACKEND_URL: envConfig.NEXT_PUBLIC_BACKEND_URL || envConfig.BACKEND_URL || `http://0.0.0.0:${envConfig.PORT}`,
 
   // Databases
   MONGO_URI: envConfig.MONGO_URI,

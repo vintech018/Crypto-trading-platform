@@ -37,7 +37,7 @@ const DESIRED_PORT = env.PORT;
 function startServer(port, attempt = 0) {
   const MAX_ATTEMPTS = env.IS_PROD ? 1 : 10;
 
-  const server = app.listen(port, () => {
+  const server = app.listen(port, "0.0.0.0", () => {
     if (port !== DESIRED_PORT) {
       logger.warn(
         `⚠️  Port ${DESIRED_PORT} was busy. SOLIDUS API started on fallback port ${port}.`
@@ -46,7 +46,7 @@ function startServer(port, attempt = 0) {
         `   Update PORT=${port} in .env or kill the process using port ${DESIRED_PORT}.`
       );
     } else {
-      logger.info(`✅ SOLIDUS API running on http://localhost:${port}`);
+      logger.info(`✅ SOLIDUS API running on port ${port} (0.0.0.0)`);
     }
     logger.info(`   Environment : ${env.NODE_ENV}`);
     logger.info(`   CORS origins : ${env.CORS_ORIGIN}`);
@@ -114,12 +114,14 @@ process.on("unhandledRejection", (reason) => {
   logger.error("Unhandled Rejection", { reason });
 });
 
-// ─── Boot sequence: Wait for DB connection before starting server ─────
+// ─── Boot sequence: Start server immediately, let DB connect in background ─────
 (async () => {
+  // Start server immediately so Railway healthchecks pass
+  startServer(DESIRED_PORT);
+
   import("mongoose").then(({ default: mongoose }) => {
     mongoose.connection.once("open", () => {
-      logger.info("MongoDB Connection Open. Starting server...");
-      startServer(DESIRED_PORT);
+      logger.info("MongoDB Connection Open.");
       // Temporarily disabled news cron job for stability
       // startNewsCronJob();
     });
