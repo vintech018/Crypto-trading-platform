@@ -31,7 +31,7 @@ export const authLimiter = rateLimit({
   standardHeaders:  true,            // send RateLimit-* headers (RFC 6585)
   legacyHeaders:    false,           // don't send deprecated X-RateLimit-* headers
   handler:          rateLimitHandler,
-  store:            env.IS_PROD ? new RedisStore({
+  store:            (env.IS_PROD && process.env.REDIS_URL) ? new RedisStore({
     sendCommand: (...args) => redisClient.call(...args),
     prefix: "rl:auth:"
   }) : undefined,
@@ -49,7 +49,7 @@ export const strictLimiter = rateLimit({
   standardHeaders:  true,
   legacyHeaders:    false,
   handler:          rateLimitHandler,
-  store:            env.IS_PROD ? new RedisStore({
+  store:            (env.IS_PROD && process.env.REDIS_URL) ? new RedisStore({
     sendCommand: (...args) => redisClient.call(...args),
     prefix: "rl:strict:"
   }) : undefined,
@@ -65,7 +65,7 @@ export const uploadLimiter = rateLimit({
   standardHeaders:  true,
   legacyHeaders:    false,
   handler:          rateLimitHandler,
-  store:            env.IS_PROD ? new RedisStore({
+  store:            (env.IS_PROD && process.env.REDIS_URL) ? new RedisStore({
     sendCommand: (...args) => redisClient.call(...args),
     prefix: "rl:upload:"
   }) : undefined,
