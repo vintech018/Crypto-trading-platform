@@ -3,7 +3,7 @@ import logger from "../../utils/logger.js";
 import { redisClient } from "../../config/redis.js";
 
 // Initialize BullMQ Queue
-export const analyticsQueue = new Queue("analytics-queue", {
+export const analyticsQueue = process.env.REDIS_URL ? new Queue("analytics-queue", {
   connection: redisClient,
   defaultJobOptions: {
     attempts: 5,
@@ -14,7 +14,11 @@ export const analyticsQueue = new Queue("analytics-queue", {
     removeOnComplete: true,
     removeOnFail: false, // Keep in dead letter queue for inspection
   },
-});
+}) : {
+  add: async () => {},
+  getJobCounts: async () => ({ waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0 }),
+  getWorkers: async () => []
+};
 
 import { processTradeReplication, processAuditLog } from "../../jobs/analyticsWorker.js";
 
