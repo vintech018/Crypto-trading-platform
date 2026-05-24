@@ -146,8 +146,8 @@ export async function googleCallback(req, res) {
     // Fire-and-forget audit log
     emitAuditEvent(userId, "LOGIN", { method: "google" });
 
-    // Redirect to frontend dashboard
-    return res.redirect(`${env.FRONTEND_URL}/dashboard`);
+    // Redirect to frontend login so it can parse the tokens and set the first-party cookie
+    return res.redirect(`${env.FRONTEND_URL}/login?auth_success=1&access=${accessToken}&refresh=${refreshToken}&from=/dashboard`);
   } catch (err) {
     return res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
   }

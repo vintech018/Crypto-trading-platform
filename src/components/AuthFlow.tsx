@@ -614,6 +614,22 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
         window.history.replaceState({}, '', window.location.pathname)
     }, [])
 
+    // Handle OAuth success redirects from the backend
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const params = new URLSearchParams(window.location.search)
+        if (params.get('auth_success')) {
+            const access = params.get('access')
+            const refresh = params.get('refresh')
+            if (access) {
+                auth.setTokens(access, refresh || undefined)
+                // Set the non-httpOnly flag cookie so Next.js middleware knows we are logged in
+                document.cookie = 'solidus_authed=true; path=/; max-age=604800; SameSite=Lax'
+                navigateNext()
+            }
+        }
+    }, [])
+
     /* Login state */
     const [lEmail, setLEmail] = useState('')
     const [lPass, setLPass] = useState('')
