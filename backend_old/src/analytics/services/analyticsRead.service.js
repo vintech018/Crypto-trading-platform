@@ -1,8 +1,11 @@
 import { prisma } from "../../postgres/client.js";
 
-
+// ─── Empty results when PostgreSQL is not configured ────────────────────────
+// prisma is null when DATABASE_URL is unset (see postgres/client.js).
+// Every read function must return empty data gracefully in that case.
 
 export async function getPortfolioHistory(userId, days = 30) {
+  if (!prisma) return [];
   const records = await prisma.portfolioSnapshot.findMany({
     where: { userId },
     orderBy: { date: 'desc' },
@@ -12,6 +15,7 @@ export async function getPortfolioHistory(userId, days = 30) {
 }
 
 export async function getDailyPnLHistory(userId, days = 30) {
+  if (!prisma) return [];
   const records = await prisma.dailyPnL.findMany({
     where: { userId },
     orderBy: { date: 'desc' },
@@ -21,6 +25,7 @@ export async function getDailyPnLHistory(userId, days = 30) {
 }
 
 export async function getAssetBreakdown(userId) {
+  if (!prisma) return [];
   const records = await prisma.assetPerformance.findMany({
     where: { userId },
   });
@@ -29,12 +34,14 @@ export async function getAssetBreakdown(userId) {
 }
 
 export async function getTradingStats(userId) {
+  if (!prisma) return null;
   return await prisma.tradingStreak.findUnique({
     where: { userId },
   });
 }
 
 export async function getMonthlyPerformance(userId, months = 12) {
+  if (!prisma) return [];
   const records = await prisma.monthlyPerformance.findMany({
     where: { userId },
     orderBy: { month: 'desc' },

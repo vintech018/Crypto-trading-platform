@@ -622,7 +622,8 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
             const access = params.get('access')
             const refresh = params.get('refresh')
             if (access) {
-                auth.setTokens(access, refresh || undefined)
+                localStorage.setItem('accessToken', access)
+                if (refresh) localStorage.setItem('refreshToken', refresh)
                 // Set the non-httpOnly flag cookie so Next.js middleware knows we are logged in
                 document.cookie = 'solidus_authed=true; path=/; max-age=604800; SameSite=Lax'
                 navigateNext()
