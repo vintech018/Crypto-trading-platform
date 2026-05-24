@@ -7,6 +7,10 @@
     "id": "../node_modules/@react-three/drei/web/FaceLandmarker.js -> @mediapipe/tasks-vision",
     "files": []
   },
+  "state/marketStore.ts -> @/lib/apiClient": {
+    "id": "state/marketStore.ts -> @/lib/apiClient",
+    "files": []
+  },
   "state/marketStore.ts -> socket.io-client": {
     "id": "state/marketStore.ts -> socket.io-client",
     "files": [
