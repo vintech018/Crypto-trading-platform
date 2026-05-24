@@ -210,11 +210,17 @@ async function issueTokenPair(user) {
 
 /** Strip sensitive fields before returning to client. */
 function sanitiseUser(user) {
+  // Priority: custom Cloudinary upload > Google OAuth avatar > null
+  const effectiveProfilePicture =
+    (user.avatarPublicId && user.profilePicture)
+      ? user.profilePicture
+      : user.googlePhotoURL || null;
+
   return {
     id:             user._id,
     name:           user.name,
     email:          user.email,
-    profilePicture: user.profilePicture || null,
+    profilePicture: effectiveProfilePicture,
     lastLogin:      user.lastLogin || null,
     createdAt:      user.createdAt,
   };

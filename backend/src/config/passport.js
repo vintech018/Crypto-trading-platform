@@ -65,7 +65,7 @@ passport.use(
         const email          = profile.emails?.[0]?.value?.toLowerCase();
         const googleId       = profile.id;
         const name           = profile.displayName || email?.split("@")[0] || "Solidus User";
-        const profilePicture = profile.photos?.[0]?.value || null;
+        const googlePhotoURL = profile.photos?.[0]?.value || null;
         const loginEvent     = makeLoginEvent(req, "google");
 
         if (!email) {
@@ -96,7 +96,9 @@ passport.use(
           if (!user.googleId) {
             user.googleId = googleId;
           }
-          user.profilePicture = profilePicture ?? user.profilePicture;
+          // Always refresh the Google avatar URL (it can change)
+          // but NEVER touch profilePicture — that belongs to custom uploads.
+          user.googlePhotoURL = googlePhotoURL ?? user.googlePhotoURL;
           user.lastLogin = loginEvent.timestamp;
           if (!Array.isArray(user.loginHistory)) user.loginHistory = [];
           user.loginHistory.push(loginEvent);
@@ -123,7 +125,7 @@ passport.use(
             googleId,
             name,
             email,
-            profilePicture,
+            googlePhotoURL,
             lastLogin:    loginEvent.timestamp,
             loginHistory: [loginEvent],
           });

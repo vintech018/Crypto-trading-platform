@@ -649,6 +649,7 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
             const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ email: lEmail, password: lPass }),
             })
             const data = await res.json()
@@ -684,6 +685,7 @@ export function AuthFlow({ initialTab = 'login' }: { initialTab?: 'login' | 'sig
             const res = await fetch(`${BACKEND_URL}/api/auth/signup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ name: sEmail.split('@')[0], email: sEmail, password: sPass }),
             })
             const data = await res.json()

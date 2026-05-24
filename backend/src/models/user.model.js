@@ -35,12 +35,21 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true, // allows null for email/password users without violating unique
     },
+    // Custom profile picture uploaded via Cloudinary (/api/uploads/avatar)
+    // This field is ONLY set by the upload controller — never by OAuth.
     profilePicture: {
       type:    String,
       default: null,
     },
+    // Cloudinary public_id — presence signals "user has a custom upload"
     avatarPublicId: {
       type: String,
+      default: null,
+    },
+    // Google OAuth avatar URL — stored separately so custom uploads
+    // always take priority and are never overwritten by re-login.
+    googlePhotoURL: {
+      type:    String,
       default: null,
     },
 
@@ -87,12 +96,24 @@ const userSchema = new mongoose.Schema(
 );
 
 // ── Instance helper ───────────────────────────────────────────────
+
+/**
+ * Returns the effective profile picture URL with priority:
+ *   1. Custom Cloudinary upload (profilePicture + avatarPublicId)
+ *   2. Google OAuth avatar (googlePhotoURL)
+ *   3. null (frontend renders fallback initial)
+ */
+userSchema.methods.getEffectiveProfilePicture = function () {
+  if (this.avatarPublicId && this.profilePicture) return this.profilePicture;
+  return this.googlePhotoURL || null;
+};
+
 userSchema.methods.toSafeObject = function () {
   return {
     id:             this._id,
     name:           this.name,
     email:          this.email,
-    profilePicture: this.profilePicture,
+    profilePicture: this.getEffectiveProfilePicture(),
     createdAt:      this.createdAt,
     lastLogin:      this.lastLogin,
     loginCount:     (this.loginHistory || []).length,

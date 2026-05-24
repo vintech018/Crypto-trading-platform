@@ -166,12 +166,18 @@ export async function me(req, res, next) {
     if (!user) {
       return sendSuccess(res, 200, "Authenticated user.", { user: req.user });
     }
+    // Priority: custom Cloudinary upload > Google OAuth avatar > null
+    const effectiveProfilePicture =
+      (user.avatarPublicId && user.profilePicture)
+        ? user.profilePicture
+        : user.googlePhotoURL || null;
+
     return sendSuccess(res, 200, "Authenticated user.", {
       user: {
         id:             user._id,
         name:           user.name,
         email:          user.email,
-        profilePicture: user.profilePicture,
+        profilePicture: effectiveProfilePicture,
         createdAt:      user.createdAt,
         lastLogin:      user.lastLogin,
         loginCount:     (user.loginHistory || []).length,
