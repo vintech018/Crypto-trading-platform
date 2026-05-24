@@ -25,9 +25,9 @@ let redisClient;
 let redisPubClient;
 let redisSubClient;
 
-if (env.NODE_ENV === "test") {
-  // Use memory mock in tests
-  logger.info("[Redis] Initializing memory mocks for test environment");
+if (env.NODE_ENV === "test" || !env.REDIS_URL) {
+  // Use memory mock in tests or if Redis is not configured
+  logger.info("[Redis] Initializing memory mocks (Redis URL not configured or in test mode)");
   // We cannot use top-level await in Jest cleanly, so we use a very simple mock for tests.
   // Tests don't actually need full ioredis-mock since we mocked BullMQ.
   class DummyRedis {

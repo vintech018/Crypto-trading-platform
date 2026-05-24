@@ -22,16 +22,20 @@ import logger from "../utils/logger.js";
 // ─── Singleton instance (standard Prisma pattern) ──────────────────────────
 let prisma = null;
 
-try {
-  prisma = new PrismaClient({
-    log: process.env.NODE_ENV === "development"
-      ? ["warn", "error"]
-      : ["error"],
-  });
-  logger.info("[PostgreSQL] Prisma client initialized for analytics layer.");
-} catch (err) {
-  logger.error("[PostgreSQL] Prisma client failed to initialize.", { message: err.message });
-  prisma = null;
+if (process.env.DATABASE_URL) {
+  try {
+    prisma = new PrismaClient({
+      log: process.env.NODE_ENV === "development"
+        ? ["warn", "error"]
+        : ["error"],
+    });
+    logger.info("[PostgreSQL] Prisma client initialized for analytics layer.");
+  } catch (err) {
+    logger.error("[PostgreSQL] Prisma client failed to initialize.", { message: err.message });
+    prisma = null;
+  }
+} else {
+  logger.info("[PostgreSQL] DATABASE_URL not set. Analytics layer disabled.");
 }
 
 // ─── Graceful shutdown hook ─────────────────────────────────────────────────

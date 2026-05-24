@@ -42,18 +42,6 @@ const REQUIRED_GROUPS = [
     ]
   },
   {
-    group: "PostgreSQL",
-    vars: [
-      { key: "DATABASE_URL", validate: (v) => v.startsWith("postgres") }
-    ]
-  },
-  {
-    group: "Redis",
-    vars: [
-      { key: "REDIS_URL", validate: (v) => v.startsWith("redis") }
-    ]
-  },
-  {
     group: "JWT & Auth",
     vars: [
       { key: "JWT_ACCESS_SECRET", validate: (v) => v.length >= 32 },
@@ -74,13 +62,6 @@ const REQUIRED_GROUPS = [
       { key: "CLOUDINARY_CLOUD_NAME", validate: (v) => v.length > 0 },
       { key: "CLOUDINARY_API_KEY", validate: (v) => v.length > 0 },
       { key: "CLOUDINARY_API_SECRET", validate: (v) => v.length > 0 }
-    ]
-  },
-  {
-    group: "Stripe",
-    vars: [
-      { key: "STRIPE_SECRET_KEY", validate: (v) => isTestMode || v.startsWith("sk_") || v.startsWith("test") },
-      { key: "STRIPE_WEBHOOK_SECRET", validate: (v) => isTestMode || v.startsWith("whsec_") || v.startsWith("test") }
     ]
   }
 ];

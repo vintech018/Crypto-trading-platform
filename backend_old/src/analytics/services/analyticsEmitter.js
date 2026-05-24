@@ -25,8 +25,8 @@ import { processTradeReplication, processAuditLog } from "../../jobs/analyticsWo
  */
 export async function emitTradeEvent(payload) {
   try {
-    if (process.env.NODE_ENV === "development") {
-      logger.debug(`[analyticsEmitter] DEV MODE: Direct execution for trade ${payload.tradeId}`);
+    if (process.env.NODE_ENV === "development" || !process.env.REDIS_URL) {
+      logger.debug(`[analyticsEmitter] DEV/NO-REDIS MODE: Direct execution for trade ${payload.tradeId}`);
       processTradeReplication({ userId: payload.userId, payload, createdAt: new Date() }).catch(err => {
         logger.error(`[analyticsEmitter] Direct trade execution failed`, { error: err.message });
       });
@@ -49,8 +49,8 @@ export async function emitTradeEvent(payload) {
  */
 export async function emitAuditEvent(userId, action, metadata = {}) {
   try {
-    if (process.env.NODE_ENV === "development") {
-      logger.debug(`[analyticsEmitter] DEV MODE: Direct execution for audit ${action}`);
+    if (process.env.NODE_ENV === "development" || !process.env.REDIS_URL) {
+      logger.debug(`[analyticsEmitter] DEV/NO-REDIS MODE: Direct execution for audit ${action}`);
       processAuditLog({ userId, payload: { action, metadata }, createdAt: new Date() }).catch(err => {
         logger.error(`[analyticsEmitter] Direct audit execution failed`, { error: err.message });
       });

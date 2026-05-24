@@ -12,6 +12,10 @@ let worker = null;
  * Perform all replication operations for a TRADE_REPLICATION event
  */
 export async function processTradeReplication(event) {
+  if (!prisma) {
+    logger.debug("[analyticsWorker] PostgreSQL client not configured. Skipping trade replication.");
+    return;
+  }
   const { userId, tradeId, asset, tradeType, amount, pnl, price, quantity } = event.payload;
   
   const createdAt = event.createdAt ? new Date(event.createdAt) : new Date();
@@ -205,6 +209,10 @@ export async function processTradeReplication(event) {
  * Perform replication for an AUDIT_LOG event
  */
 export async function processAuditLog(event) {
+  if (!prisma) {
+    logger.debug("[analyticsWorker] PostgreSQL client not configured. Skipping audit log replication.");
+    return;
+  }
   const { action, metadata } = event.payload;
   await writeAuditLog(event.userId, action, metadata);
 }
@@ -259,6 +267,10 @@ async function processJob(job) {
  */
 export function startAnalyticsWorker() {
   if (worker) return;
+  if (!process.env.REDIS_URL) {
+    logger.warn("[analyticsWorker] REDIS_URL not configured. Analytics worker disabled.");
+    return;
+  }
   logger.info("[analyticsWorker] Starting analytics BullMQ worker...");
   
   worker = new Worker("analytics-queue", async (job) => {

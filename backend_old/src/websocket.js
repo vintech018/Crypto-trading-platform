@@ -7,13 +7,18 @@ import { redisPubClient, redisSubClient } from "./config/redis.js";
 let io;
 
 export function initWebSocket(server) {
-  io = new Server(server, {
+  const ioOptions = {
     cors: {
       origin: env.CORS_ORIGIN.split(",").map(o => o.trim()).filter(Boolean),
       credentials: true,
     },
-    adapter: createAdapter(redisPubClient, redisSubClient),
-  });
+  };
+
+  if (process.env.REDIS_URL) {
+    ioOptions.adapter = createAdapter(redisPubClient, redisSubClient);
+  }
+
+  io = new Server(server, ioOptions);
 
   io.use((socket, next) => {
     try {
